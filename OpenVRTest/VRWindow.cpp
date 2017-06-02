@@ -130,25 +130,25 @@ void WindowManager::mainLoop() {
 	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 
 
-	const int NUM_SAMPLES = 4;
+	const int NUM_SAMPLES = 8;
 
 	if (!fbLeftEyeDraw.addTexture(
-//		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm),
+		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
+//		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbLeftEyeDraw.addTexture(
-//		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT)) 
-		createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), GL_DEPTH_ATTACHMENT))
+		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT)) 
+//		createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), GL_DEPTH_ATTACHMENT))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
 	if (!fbRightEyeDraw.addTexture(
-//		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm),
+		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
+//		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbRightEyeDraw.addTexture(
-//		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
-		createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), GL_DEPTH_ATTACHMENT))
+		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
+//		createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), GL_DEPTH_ATTACHMENT))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
