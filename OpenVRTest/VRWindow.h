@@ -20,12 +20,14 @@
 #include <string>
 #include <glm/glm.hpp>
 
+#include "VRCamera.h"
+
 
 class WindowManager {
 protected:
 	GLFWwindow *window;
-	
 	vr::IVRSystem *vrDisplay;
+	void initGL();
 	
 	int window_width, window_height;
 
@@ -39,6 +41,5 @@ public:
 };
 
 vr::IVRSystem *initVR();
-void initGL();
 void initGlad();
 GLFWwindow *createWindow(int width, int height, std::string name);
