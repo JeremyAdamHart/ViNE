@@ -18,6 +18,7 @@ using namespace std;
 #include "ShadedMat.h"
 #include "TorranceSparrowShader.h"
 #include "Framebuffer.h"
+#include "VRController.h"
 
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -134,21 +135,17 @@ void WindowManager::mainLoop() {
 
 	if (!fbLeftEyeDraw.addTexture(
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-//		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbLeftEyeDraw.addTexture(
 		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT)) 
-//		createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), GL_DEPTH_ATTACHMENT))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
 	if (!fbRightEyeDraw.addTexture(
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-//		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbRightEyeDraw.addTexture(
 		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
-//		createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), GL_DEPTH_ATTACHMENT))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
@@ -165,8 +162,25 @@ void WindowManager::mainLoop() {
 	Viewport leftEyeView(window_width / 2, window_height);
 	Viewport rightEyeView(window_width / 2, window_height, window_width/2);
 
+	//Parse tracked devices
+	int headsetIndex = 0;
+	vector<VRController> controllers;
 	vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
-	VRCameraController vrCam (&poses[0], vrDisplay);
+
+	for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+		vr::TrackedDeviceClass deviceClass = vrDisplay->GetTrackedDeviceClass(i);
+
+		switch (deviceClass) {
+		case vr::TrackedDeviceClass_HMD:
+			headsetIndex = i;
+			break;
+		case vr::TrackedDeviceClass_Controller:
+			controllers.push_back(VRController(i, vrDisplay, poses[i], &tm));
+			break;
+		}
+	}
+
+	VRCameraController vrCam (&poses[headsetIndex], vrDisplay);
 
 	//Dragon
 	ElementGeometry dragonGeom = objToElementGeometry("models/dragon.obj");
@@ -213,28 +227,19 @@ void WindowManager::mainLoop() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//Get pose
-		vr::VRCompositor()->WaitGetPoses(poses, 1, NULL, 0);
+		vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, 
+			NULL, 0);
 
 		//Update camera
 		vrCam.update();
 		vrCam.setProjection(vrDisplay);
 
-	/*	static vec3 pos(0.f);
-		vec3 newPos = vrCam.leftEye.getPosition();
-		if (glm::distance(newPos, pos) > 0.01f) {
-			pos = newPos;
-			vec4 dir = inverse(vrCam.leftEye.getCameraMatrix())*vec4(0, 0, 1, 0);
-			printf("Pos = (%f, %f, %f) Dir = (%f, %f, %f)\n", 
-				pos.x, pos.y, pos.z, dir.x, dir.y, dir.z);
-
-			printMat4(vrCam.leftEye.getCameraMatrix());
-			printMat4(vrCam.leftEye.getProjectionMatrix());
-		}*/
+		//Update controllers
+		for (int i = 0; i < controllers.size(); i++)
+			controllers[i].updatePose(poses[controllers[i].index]);
 	
 		lightPos = 0.5f*vrCam.leftEye.getPosition() + 
 			0.5f*vrCam.rightEye.getPosition();
-
-		//dragon.setPosition(lightPos+vec3(dir.x, dir.y, dir.z));
 
 		glEnable(GL_MULTISAMPLE);
 
@@ -242,11 +247,15 @@ void WindowManager::mainLoop() {
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		tsShader.draw(vrCam.leftEye, lightPos, dragon);
+		for (int i = 0; i < controllers.size(); i++)
+			tsShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		tsShader.draw(vrCam.rightEye, lightPos, dragon);
+		for (int i = 0; i < controllers.size(); i++)
+			tsShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
 		blit(fbRightEyeDraw, fbRightEyeRead);
@@ -263,6 +272,7 @@ void WindowManager::mainLoop() {
 		glClearColor(1.0, 1.0, 1.0, 1.0);
 		texShader.draw(cam, rightSquare);
 
+		//Draw headset
 		if (vrDisplay) {
 			vr::Texture_t leftTexture = { 
 				(void*)(uintptr_t)fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(), 

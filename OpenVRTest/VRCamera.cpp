@@ -1,4 +1,5 @@
 #include "VRCamera.h"
+#include "VRTools.h"
 
 using namespace glm;
 
@@ -25,40 +26,33 @@ headsetPose(headsetPose), leftEyeTransform(1.f), rightEyeTransform(1.f)
 	setProjection(vrDisplay);
 }
 
-mat4 toMat4(const vr::HmdMatrix44_t &hmdMat) {
+/*mat4 toMat4(const vr::HmdMatrix44_t &hmdMat) {
 	return {
 		hmdMat.m[0][0], hmdMat.m[1][0], hmdMat.m[2][0], hmdMat.m[3][0],
 		hmdMat.m[0][1], hmdMat.m[1][1], hmdMat.m[2][1], hmdMat.m[3][1],
 		hmdMat.m[0][2], hmdMat.m[1][2], hmdMat.m[2][2], hmdMat.m[3][2],
 		hmdMat.m[0][3], hmdMat.m[1][3], hmdMat.m[2][3], hmdMat.m[3][3]};
-}
+}*/
 
-void VRCameraController::setProjection(vr::IVRSystem *vrDisplay, float near, float far) {
+void VRCameraController::setProjection(vr::IVRSystem *vrDisplay, float nearD, float farD) {
 
 	mat4 leftProjection = toMat4(
-		vrDisplay->GetProjectionMatrix(vr::Eye_Left, near, far));
+		vrDisplay->GetProjectionMatrix(vr::Eye_Left, nearD, farD));
 	leftEye.setProjectionMatrix(leftProjection);
 	mat4 rightProjection = toMat4(
-		vrDisplay->GetProjectionMatrix(vr::Eye_Right, near, far));
+		vrDisplay->GetProjectionMatrix(vr::Eye_Right, nearD, farD));
 	rightEye.setProjectionMatrix(rightProjection);
 }
 
-mat4 toMat4(const vr::HmdMatrix34_t &hmdMat) {
-	return {
-		hmdMat.m[0][0], hmdMat.m[1][0], hmdMat.m[2][0], 0.f,
-		hmdMat.m[0][1], hmdMat.m[1][1], hmdMat.m[2][1], 0.f,
-		hmdMat.m[0][2], hmdMat.m[1][2], hmdMat.m[2][2], 0.f,
-		hmdMat.m[0][3], hmdMat.m[1][3], hmdMat.m[2][3], 1.f };
-}
 
 void VRCameraController::setEyeTransforms(vr::IVRSystem *vrDisplay) {
-	leftEyeTransform = toMat4(vrDisplay->GetEyeToHeadTransform(vr::Eye_Left));
-	rightEyeTransform = toMat4(vrDisplay->GetEyeToHeadTransform(vr::Eye_Right));
+	leftEyeTransform = inverse(toMat4(vrDisplay->GetEyeToHeadTransform(vr::Eye_Left)));
+	rightEyeTransform = inverse(toMat4(vrDisplay->GetEyeToHeadTransform(vr::Eye_Right)));
 }
 
 void VRCameraController::update() {
 	mat4 headTransform = inverse(toMat4(headsetPose->mDeviceToAbsoluteTracking));
 
-	leftEye.setCameraMatrix(headTransform*leftEyeTransform);
-	rightEye.setCameraMatrix(headTransform*rightEyeTransform);
+	leftEye.setCameraMatrix(leftEyeTransform*headTransform);
+	rightEye.setCameraMatrix(rightEyeTransform*headTransform);
 }

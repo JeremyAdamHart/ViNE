@@ -162,10 +162,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VRCamera.cpp" />
+    <ClCompile Include="VRController.cpp" />
+    <ClCompile Include="VRTools.cpp" />
     <ClCompile Include="VRWindow.cpp" />
     <ClCompile Include="OpenVRTest.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="VRController.h" />
+    <ClInclude Include="VRTools.h" />
     <ClInclude Include="VRCamera.h" />
     <ClInclude Include="VRWindow.h" />
   </ItemGroup>
