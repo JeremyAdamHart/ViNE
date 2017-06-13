@@ -88,7 +88,7 @@ void WindowManager::mainLoop() {
 
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 
-	vec3 points [6] = {
+	vec3 points[6] = {
 		//First triangle
 		vec3(-0.5f, 0.5f, 0.f)*2.f,
 		vec3(0.5f, 0.5f, 0.f)*2.f,
@@ -122,7 +122,7 @@ void WindowManager::mainLoop() {
 	unsigned int TEX_WIDTH = 800;
 	unsigned int TEX_HEIGHT = 800;
 	vrDisplay->GetRecommendedRenderTargetSize(&TEX_WIDTH, &TEX_HEIGHT);
-//	glfwSetWindowSize(window, TEX_WIDTH * 2, TEX_HEIGHT);
+	//	glfwSetWindowSize(window, TEX_WIDTH * 2, TEX_HEIGHT);
 
 
 	Framebuffer fbLeftEyeDraw = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
@@ -137,7 +137,7 @@ void WindowManager::mainLoop() {
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbLeftEyeDraw.addTexture(
-		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT)) 
+			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
@@ -145,7 +145,7 @@ void WindowManager::mainLoop() {
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbRightEyeDraw.addTexture(
-		createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
+			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
@@ -160,7 +160,7 @@ void WindowManager::mainLoop() {
 	}
 
 	Viewport leftEyeView(window_width / 2, window_height);
-	Viewport rightEyeView(window_width / 2, window_height, window_width/2);
+	Viewport rightEyeView(window_width / 2, window_height, window_width / 2);
 
 	//Parse tracked devices
 	int headsetIndex = 0;
@@ -180,7 +180,7 @@ void WindowManager::mainLoop() {
 		}
 	}
 
-	VRCameraController vrCam (&poses[headsetIndex], vrDisplay);
+	VRCameraController vrCam(&poses[headsetIndex], vrDisplay);
 
 	//Dragon
 	ElementGeometry dragonGeom = objToElementGeometry("models/dragon.obj");
@@ -212,6 +212,8 @@ void WindowManager::mainLoop() {
 	SimpleTexShader texShader;
 	SimpleShader shader;
 	TorranceSparrowShader tsShader;
+	TorranceSparrowShader tsTexShader({{ GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
+	});
 
 	TrackballCamera savedCam = cam;
 
@@ -248,14 +250,14 @@ void WindowManager::mainLoop() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		tsShader.draw(vrCam.leftEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
-			tsShader.draw(vrCam.leftEye, lightPos, controllers[i]);
+			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		tsShader.draw(vrCam.rightEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
-			tsShader.draw(vrCam.rightEye, lightPos, controllers[i]);
+			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
 		blit(fbRightEyeDraw, fbRightEyeRead);
