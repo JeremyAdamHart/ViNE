@@ -1,6 +1,8 @@
 #include "VRCamera.h"
 #include "VRTools.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 using namespace glm;
 
 VRCamera::VRCamera(): camMatrix(1.f){}
@@ -35,13 +37,14 @@ headsetPose(headsetPose), leftEyeTransform(1.f), rightEyeTransform(1.f)
 }*/
 
 void VRCameraController::setProjection(vr::IVRSystem *vrDisplay, float nearD, float farD) {
+	mat4 newProjection = glm::ortho(-0.02f, 0.02f, -0.02f, 0.02f, nearD, farD);
 
 	mat4 leftProjection = toMat4(
 		vrDisplay->GetProjectionMatrix(vr::Eye_Left, nearD, farD));
-	leftEye.setProjectionMatrix(leftProjection);
+	leftEye.setProjectionMatrix(newProjection);
 	mat4 rightProjection = toMat4(
 		vrDisplay->GetProjectionMatrix(vr::Eye_Right, nearD, farD));
-	rightEye.setProjectionMatrix(rightProjection);
+	rightEye.setProjectionMatrix(newProjection);
 }
 
 
