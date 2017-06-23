@@ -11,6 +11,7 @@ out vec4 ModelPosition;
 #ifndef POSITION_ONLY
 	out vec3 ModelNormal;
 #endif
+
 uniform mat4 model_matrix;
 uniform mat4 view_projection_matrix;
 
@@ -22,4 +23,5 @@ void main()
 	    vec4 normal = model_matrix*vec4(VertexNormal, 0.0);
 	    ModelNormal = normal.xyz;
     #endif
+    gl_Position = view_projection_matrix*model_matrix*vec4(VertexPosition, 1.0);
 }
