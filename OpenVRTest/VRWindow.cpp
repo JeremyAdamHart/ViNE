@@ -19,6 +19,7 @@ using namespace std;
 #include "TorranceSparrowShader.h"
 #include "Framebuffer.h"
 #include "VRController.h"
+#include "ModelLoader.h"
 
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -131,7 +132,7 @@ void WindowManager::mainLoop() {
 	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 
 
-	const int NUM_SAMPLES = 8;
+	const int NUM_SAMPLES = 16;
 
 	if (!fbLeftEyeDraw.addTexture(
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
@@ -217,13 +218,18 @@ void WindowManager::mainLoop() {
 
 	TrackballCamera savedCam = cam;
 
-	vec3 lightPos(-10.f, 10.f, 1.f);
+//	vec3 lightPos(-10.f, 10.f, 1.f);
+	vec3 lightPos(-100.f, 100.f, 100.f);
 
 	fbLeftEyeDraw.use();
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	tsShader.draw(cam, lightPos, dragon);
 
 	fbWindow.use();
+
+	vector<Drawable> drawables;
+	loadWavefront("untrackedmodels/OrganodronCity/", "OrganodronCity", &drawables, &tm);
+//	loadWavefront("untrackedmodels/SciFiCenter/CenterCity/", "scificity", &drawables, &tm);
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -234,16 +240,21 @@ void WindowManager::mainLoop() {
 
 		//Update camera
 		vrCam.update();
-		vrCam.setProjection(vrDisplay);
+		vrCam.setProjection(vrDisplay, 0.2f, 400.f);
 
 		//Update controllers
 		for (int i = 0; i < controllers.size(); i++)
 			controllers[i].updatePose(poses[controllers[i].index]);
 	
-		lightPos = 0.5f*vrCam.leftEye.getPosition() + 
-			0.5f*vrCam.rightEye.getPosition();
+//		lightPos = 0.5f*vrCam.leftEye.getPosition() + 
+//			0.5f*vrCam.rightEye.getPosition();
 
 		glEnable(GL_MULTISAMPLE);
+		glClearColor(0.f, 0.f, 0.f, 1.f);
+
+		dragon.setPosition(0.5f*vrCam.leftEye.getPosition()
+			+ 0.5f*vrCam.rightEye.getPosition()
+			+ vec3(0, 2, 0));
 
 		//Draw left eye
 		fbLeftEyeDraw.use();
@@ -252,12 +263,27 @@ void WindowManager::mainLoop() {
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 
+		for (int i = 0; i < drawables.size(); i++) {
+			if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
+				tsTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+			}
+			else
+				tsShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+		}
+
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		tsShader.draw(vrCam.rightEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
+		for (int i = 0; i < drawables.size(); i++) {
+			if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
+				tsTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+			}
+			else
+				tsShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+		}
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
 		blit(fbRightEyeDraw, fbRightEyeRead);

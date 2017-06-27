@@ -41,10 +41,10 @@ void VRCameraController::setProjection(vr::IVRSystem *vrDisplay, float nearD, fl
 
 	mat4 leftProjection = toMat4(
 		vrDisplay->GetProjectionMatrix(vr::Eye_Left, nearD, farD));
-	leftEye.setProjectionMatrix(newProjection);
+	leftEye.setProjectionMatrix(leftProjection);
 	mat4 rightProjection = toMat4(
 		vrDisplay->GetProjectionMatrix(vr::Eye_Right, nearD, farD));
-	rightEye.setProjectionMatrix(newProjection);
+	rightEye.setProjectionMatrix(rightProjection);
 }
 
 
