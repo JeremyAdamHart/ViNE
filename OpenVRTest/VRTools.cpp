@@ -3,6 +3,8 @@
 #include <TextureMat.h>
 #include <ShadedMat.h>
 
+using namespace renderlib;
+
 void openvrRenderModelToDrawable(Drawable *drawable, 
 	vr::RenderModel_t *openvrModel, TextureManager *texManager)
 {

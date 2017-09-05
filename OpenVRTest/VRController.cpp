@@ -2,9 +2,40 @@
 #include <glmSupport.h>
 #include "VRTools.h"
 
+using namespace renderlib;
+
+string getRenderModelErrorString(vr::EVRRenderModelError error) {
+	switch (error) {
+	case vr::VRRenderModelError_BufferTooSmall:
+		return "BufferTooSmall";
+	case vr::VRRenderModelError_InvalidArg:
+		return "InvalidArg";
+	case vr::VRRenderModelError_InvalidModel:
+		return "InvalidModel";
+	case vr::VRRenderModelError_InvalidTexture:
+		return "InvalidTexture";
+	case vr::VRRenderModelError_Loading:
+		return "Loading";
+	case vr::VRRenderModelError_MultipleShapes:
+		return "MultipleShapes";
+	case vr::VRRenderModelError_MultipleTextures:
+		return "MultipleTextures";
+	case vr::VRRenderModelError_NoShapes:
+		return "NoShapes";
+	case vr::VRRenderModelError_NotEnoughNormals:
+		return "NotEnoughNormals";
+	case vr::VRRenderModelError_NotEnoughTexCoords:
+		return "NotEnoughTexCoords";
+	case vr::VRRenderModelError_NotSupported:
+		return "NotSupported";
+	case vr::VRRenderModelError_TooManyVertices:
+		return "TooManyVertices";
+	}
+}
+
 VRController::VRController(vr::TrackedDeviceIndex_t index, vr::IVRSystem *vrSystem, 
 	vr::TrackedDevicePose_t pose, TextureManager *texManager) : 
-	vrSystem(vrSystem), index(index)
+	index(index)
 {
 	updatePose(pose);
 
@@ -23,50 +54,17 @@ VRController::VRController(vr::TrackedDeviceIndex_t index, vr::IVRSystem *vrSyst
 	if(error == vr::VRRenderModelError_None)
 		openvrRenderModelToDrawable(this, renderModel, texManager);
 	else {
-		switch (error) {
-		case vr::VRRenderModelError_BufferTooSmall:
-			printf("RenderModelError - BufferTooSmall\n");
-			break;
-		case vr::VRRenderModelError_InvalidArg:
-			printf("RenderModelError - InvalidArg\n");
-			break;
-		case vr::VRRenderModelError_InvalidModel:
-			printf("RenderModelError - InvalidModel\n");
-			break;
-		case vr::VRRenderModelError_InvalidTexture:
-			printf("RenderModelError - InvalidTexture\n");
-			break;
-		case vr::VRRenderModelError_Loading:
-			printf("RenderModelError - Loading\n");
-			break;
-		case vr::VRRenderModelError_MultipleShapes:
-			printf("RenderModelError - MultipleShapes\n");
-			break;
-		case vr::VRRenderModelError_MultipleTextures:
-			printf("RenderModelError - MultipleTextures\n");
-			break;
-		case vr::VRRenderModelError_NoShapes:
-			printf("RenderModelError - NoShapes\n");
-			break;
-		case vr::VRRenderModelError_NotEnoughNormals:
-			printf("RenderModelError - NotEnoughNormals\n");
-			break;
-		case vr::VRRenderModelError_NotEnoughTexCoords:
-			printf("RenderModelError - NotEnoughTexCoords\n");
-			break;
-		case vr::VRRenderModelError_NotSupported:
-			printf("RenderModelError - NotSupported\n");
-			break;
-		case vr::VRRenderModelError_TooManyVertices:
-			printf("RenderModelError - TooManyVertices\n");
-			break;
-		}
+		printf("RenderModelError - %s\n", getRenderModelErrorString(error).c_str());
 	}
 }
 
 void VRController::updatePose(const vr::TrackedDevicePose_t &pose) {
 	vr::HmdMatrix34_t poseMatrix = pose.mDeviceToAbsoluteTracking;
 	position = getTranslation(poseMatrix);
-	orientation = quat_cast(getRotation(poseMatrix));
-	orientation = normalize(orientation);
+	orientation = normalize(quat_cast(getRotation(poseMatrix)));
+}
+
+void VRController::updateState(const vr::VRControllerState_t &state) {
+	axes[TRIGGER] = vec2(state.rAxis[1].x, 0.f);
+	buttons[TRACKPAD] = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad) && state.ulButtonPressed;
 }

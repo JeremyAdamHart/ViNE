@@ -4,7 +4,7 @@
 #include <glmSupport.h>
 #include <openvr.h>
 
-class VRCamera : public Camera {
+class VRCamera : public renderlib::Camera {
 
 	glm::mat4 camMatrix;
 

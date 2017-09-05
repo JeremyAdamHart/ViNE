@@ -26,6 +26,8 @@ using namespace std;
 
 const float PI = 3.14159265358979323846;
 
+using namespace renderlib;
+
 TrackballCamera cam(
 	vec3(0, 0, -1), vec3(0, 0, 1),
 	//	glm::perspective(90.f*3.14159f/180.f, 1.f, 0.1f, 3.f));
@@ -87,6 +89,11 @@ void printMat4(const mat4 &m) {
 //Temporary testing
 void WindowManager::mainLoop() {
 
+	//Test quaterions
+/*	quat rot = angleAxis(3.14159f, vec3(0, 1, 0));
+	vec4 point(1, 0, 0, 1);
+	vec4 res1 = rot*point*rot.
+	*/
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 
 	vec3 points[6] = {
@@ -132,7 +139,7 @@ void WindowManager::mainLoop() {
 	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 
 
-	const int NUM_SAMPLES = 16;
+	const int NUM_SAMPLES = 1;
 
 	if (!fbLeftEyeDraw.addTexture(
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
@@ -218,7 +225,6 @@ void WindowManager::mainLoop() {
 
 	TrackballCamera savedCam = cam;
 
-//	vec3 lightPos(-10.f, 10.f, 1.f);
 	vec3 lightPos(-100.f, 100.f, 100.f);
 
 	fbLeftEyeDraw.use();
@@ -230,6 +236,20 @@ void WindowManager::mainLoop() {
 	vector<Drawable> drawables;
 	loadWavefront("untrackedmodels/OrganodronCity/", "OrganodronCity", &drawables, &tm);
 //	loadWavefront("untrackedmodels/SciFiCenter/CenterCity/", "scificity", &drawables, &tm);
+//	loadWavefront("untrackedmodels/lstudio/", "lsystem.obj", &drawables, &tm);
+
+	for (int i = 0; i < drawables.size(); i++) {
+		drawables[i].setPosition(vec3(0, 0, -2.f));
+		drawables[i].setScale(vec3(0.1));
+	}
+	
+	vector<vec3> controllerPositions(controllers.size());
+
+	quat perFrameRot = angleAxis(3.14159f / 90.f, vec3(0, 1, 0));
+
+	//Velocity
+	vec3 linearVelocity(0.f);
+	quat angularVelocity = quat();
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -243,9 +263,82 @@ void WindowManager::mainLoop() {
 		vrCam.setProjection(vrDisplay, 0.2f, 400.f);
 
 		//Update controllers
-		for (int i = 0; i < controllers.size(); i++)
+		vector<int> triggersPressed;
+		for (int i = 0; i < controllers.size(); i++) {
+			vr::VRControllerState_t state;
+			vr::TrackedDevicePose_t pose;
+			if (!vrDisplay->GetControllerStateWithPose(
+				vr::VRCompositor()->GetTrackingSpace(),
+				controllers[i].index,
+				&state,
+				sizeof(vr::VRControllerState_t),
+				&pose)) 
+			{
+				printf("Error reading controller state\n");
+			}
+
 			controllers[i].updatePose(poses[controllers[i].index]);
-	
+			controllers[i].updateState(state);
+			if (controllers[i].axes[VRController::TRIGGER].x > 0.5f)
+				triggersPressed.push_back(i);
+		}
+
+		vec3 positionTransform(0.f);
+		quat orientationTransform;
+		
+		bool updatePositions = true;
+
+		switch (triggersPressed.size()) {
+		case 1:
+		{
+			vec3 lastPos = controllerPositions[triggersPressed[0]];
+			positionTransform = controllers[triggersPressed[0]].getPos() - lastPos;
+			linearVelocity = positionTransform;
+			break;
+		}
+		case 2:
+		{
+			vec3 axisA = normalize(controllerPositions[triggersPressed[0]]
+				- controllerPositions[triggersPressed[1]]);
+			vec3 axisB = normalize(controllers[triggersPressed[0]].getPos()
+				- controllers[triggersPressed[1]].getPos());
+			vec3 rotAxis = cross(axisA, axisB);
+			if (length(rotAxis) > 0.0001) {
+				float angle = asin(length(rotAxis));
+				orientationTransform = angleAxis(angle, normalize(rotAxis));
+				angularVelocity = orientationTransform;
+			}
+			else
+				updatePositions = false;
+			break;
+
+		}
+		default:
+			for (int i = 0; i < drawables.size(); i++) {
+				quat orientation = drawables[i].getOrientationQuat();
+				drawables[i].setOrientation(normalize(angularVelocity*orientation));
+				drawables[i].setPosition(drawables[i].getPos() + linearVelocity);
+			}
+
+			angularVelocity = slerp(angularVelocity, quat(), 0.01f);
+			linearVelocity *= 0.99f;
+		}
+
+		if (updatePositions) {
+			for (int i = 0; i < controllerPositions.size(); i++) {
+				controllerPositions[i] = controllers[i].getPos();
+			}
+		}
+		
+
+		//Update model
+		for (int i = 0; i < drawables.size(); i++) {
+			quat orientation = drawables[i].getOrientationQuat();
+			drawables[i].setOrientation(normalize(orientationTransform*orientation));
+			drawables[i].setPosition(drawables[i].getPos() + positionTransform);
+			
+		}
+
 //		lightPos = 0.5f*vrCam.leftEye.getPosition() + 
 //			0.5f*vrCam.rightEye.getPosition();
 
