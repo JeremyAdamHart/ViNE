@@ -139,7 +139,7 @@ void WindowManager::mainLoop() {
 	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 
 
-	const int NUM_SAMPLES = 1;
+	const int NUM_SAMPLES = 16;
 
 	if (!fbLeftEyeDraw.addTexture(
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
