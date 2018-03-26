@@ -55,6 +55,8 @@ Debug/OpenVRTest.exe
 *.ilk
 OpenVRTest/Debug/*.obj
 OpenVRTest/Release/*.obj
+OpenVRTest/x64/Release/
+x64/*
 OpenVRTest/untrackedmodels
 *.pdb
 *.suo

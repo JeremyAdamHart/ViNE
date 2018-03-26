@@ -234,13 +234,18 @@ void WindowManager::mainLoop() {
 	fbWindow.use();
 
 	vector<Drawable> drawables;
-	loadWavefront("untrackedmodels/OrganodronCity/", "OrganodronCity", &drawables, &tm);
+//	loadWavefront("untrackedmodels/OrganodronCity/", "OrganodronCity", &drawables, &tm);
 //	loadWavefront("untrackedmodels/SciFiCenter/CenterCity/", "scificity", &drawables, &tm);
 //	loadWavefront("untrackedmodels/lstudio/", "lsystem.obj", &drawables, &tm);
+//	loadWavefront("untrackedmodels/", "riccoSurface_take2", &drawables, &tm);
+
+	ElementGeometry objGeometry = objToElementGeometry("untrackedmodels/riccoSurface_take3.obj");
+	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &objGeometry));
+	drawables[0].addMaterial(new ColorMat(vec3(1, 1, 1)));
 
 	for (int i = 0; i < drawables.size(); i++) {
-		drawables[i].setPosition(vec3(0, 0, -2.f));
-		drawables[i].setScale(vec3(0.1));
+		drawables[i].setPosition(vec3(0, 0, -6.f));
+		drawables[i].setScale(vec3(10.0));
 	}
 	
 	vector<vec3> controllerPositions(controllers.size());
@@ -316,11 +321,11 @@ void WindowManager::mainLoop() {
 		default:
 			for (int i = 0; i < drawables.size(); i++) {
 				quat orientation = drawables[i].getOrientationQuat();
-				drawables[i].setOrientation(normalize(angularVelocity*orientation));
+//				drawables[i].setOrientation(normalize(angularVelocity*orientation));
 				drawables[i].setPosition(drawables[i].getPos() + linearVelocity);
 			}
 
-			angularVelocity = slerp(angularVelocity, quat(), 0.01f);
+			//angularVelocity = slerp(angularVelocity, quat(), 0.002f);
 			linearVelocity *= 0.99f;
 		}
 
@@ -352,7 +357,7 @@ void WindowManager::mainLoop() {
 		//Draw left eye
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		tsShader.draw(vrCam.leftEye, lightPos, dragon);
+//		tsShader.draw(vrCam.leftEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 
@@ -367,7 +372,7 @@ void WindowManager::mainLoop() {
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		tsShader.draw(vrCam.rightEye, lightPos, dragon);
+//		tsShader.draw(vrCam.rightEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
@@ -405,6 +410,8 @@ void WindowManager::mainLoop() {
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture);
 			vr::VRCompositor()->Submit(vr::Eye_Right, &rightTexture);
 		}
+
+		checkGLErrors("Buffer overflow?");
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
