@@ -42,10 +42,10 @@ TrackballCamera cam(
 
 void cursorPositionCallback(GLFWwindow *window, double xpos, double ypos) {
 	static vec2 lastPos = vec2(0.f, 0.f);
-
+	
 	int vp[4];
 	glGetIntegerv(GL_VIEWPORT, vp);
-	vec2 mousePos = vec2(float(xpos) / float(vp[2]),
+	vec2 mousePos = vec2(float(xpos) / float(vp[2]), 
 		float(-ypos) / float(vp[3]))*2.f
 		- vec2(1.f, 1.f);
 
@@ -59,10 +59,10 @@ void cursorPositionCallback(GLFWwindow *window, double xpos, double ypos) {
 }
 
 WindowManager::WindowManager() :
-	window_width(800), window_height(800)
+window_width(800), window_height(800)
 {
 	glfwInit();
-	window = createWindow(window_width, window_height,
+	window = createWindow(window_width, window_height, 
 		"You really should rename this");
 	initGlad();
 	vrDisplay = initVR();
@@ -73,7 +73,7 @@ WindowManager::WindowManager() :
 }
 
 WindowManager::WindowManager(int width, int height, std::string name, glm::vec4 color) :
-	window_width(width), window_height(height)
+	window_width(width), window_height(height) 
 {
 	glfwInit();
 	window = createWindow(window_width, window_height, name);
@@ -103,7 +103,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 void WindowManager::mainLoop() {
 
 	//Test quaterions
-	/*	quat rot = angleAxis(3.14159f, vec3(0, 1, 0));
+/*	quat rot = angleAxis(3.14159f, vec3(0, 1, 0));
 	vec4 point(1, 0, 0, 1);
 	vec4 res1 = rot*point*rot.
 	*/
@@ -120,17 +120,17 @@ void WindowManager::mainLoop() {
 		vec3(-0.5f, 0.5f, 0.f)*2.f
 	};
 
-	/*	vec2 coords[6] = {
-	//First triangle
-	vec2(1, 0.f),
-	vec2(0.f, 0.f),
-	vec2(0.f, 1.f),
-	//Second triangle
-	vec2(0.f, 1.f),
-	vec2(1.f, 1.f),
-	vec2(1.f, 0.f)
+/*	vec2 coords[6] = {
+		//First triangle
+		vec2(1, 0.f),
+		vec2(0.f, 0.f),
+		vec2(0.f, 1.f),
+		//Second triangle
+		vec2(0.f, 1.f),
+		vec2(1.f, 1.f),
+		vec2(1.f, 0.f)
 	};
-	*/
+*/
 	vec2 coords[6] = {
 		//First triangle
 		vec2(0, 1.f),
@@ -141,7 +141,7 @@ void WindowManager::mainLoop() {
 		vec2(0.f, 0.f),
 		vec2(0.f, 1.f)
 	};
-
+	
 	vec2 coords2[6] = {
 		//First triangle
 		vec2(1, 0.f),
@@ -175,67 +175,57 @@ void WindowManager::mainLoop() {
 	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 
 
-	const int NUM_SAMPLES = 4;
-	/*
+	const int NUM_SAMPLES = 16;
+/*
 	if (!fbLeftEyeDraw.addTexture(
-	createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-	GL_COLOR_ATTACHMENT0) ||
-	!fbLeftEyeDraw.addTexture(
-	createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
+		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
+		GL_COLOR_ATTACHMENT0) ||
+		!fbLeftEyeDraw.addTexture(
+			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
 	{
-	std::cout << "FBO creation failed" << endl;
+		std::cout << "FBO creation failed" << endl;
 	}
 	if (!fbRightEyeDraw.addTexture(
-	createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-	GL_COLOR_ATTACHMENT0) ||
-	!fbRightEyeDraw.addTexture(
-	createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
+		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
+		GL_COLOR_ATTACHMENT0) ||
+		!fbRightEyeDraw.addTexture(
+			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
 	{
-	std::cout << "FBO creation failed" << endl;
+		std::cout << "FBO creation failed" << endl;
 	}
-	*/
+*/
 
 	//TEST vv
 
 	if (!fbLeftEyeDraw.addTexture(
-		createTexture2DMulti(
-			TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+		createTexture2D(
+			TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT)}, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbLeftEyeDraw.addTexture(
-			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
+			createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), 
 			GL_DEPTH_ATTACHMENT) ||
 		!fbLeftEyeDraw.addTexture(
-			createTexture2DMulti(
-				TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+			createTexture2D(
+				TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm),
 			GL_COLOR_ATTACHMENT1))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
 
 	if (!fbRightEyeDraw.addTexture(
-		createTexture2DMulti(
-			TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+		createTexture2D(
+			TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbRightEyeDraw.addTexture(
-			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
+			createDepthTexture(TEX_WIDTH, TEX_HEIGHT, &tm), 
 			GL_DEPTH_ATTACHMENT) ||
 		!fbRightEyeDraw.addTexture(
-			createTexture2DMulti(
-				TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+			createTexture2D(
+				TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm),
 			GL_COLOR_ATTACHMENT1))
 	{
 		std::cout << "FBO creation failed" << endl;
 	}
-
-	Framebuffer aoRenderLeft = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
-	Framebuffer aoRenderRight = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
-	aoRenderLeft.addTexture(createTexture2DMulti(
-		TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-		GL_COLOR_ATTACHMENT0);
-	aoRenderRight.addTexture(createTexture2DMulti(
-		TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-		GL_COLOR_ATTACHMENT0);
-
 
 	//TEST ^^
 
@@ -292,14 +282,14 @@ void WindowManager::mainLoop() {
 	sphere.setPosition(vec3(1.f, 0, 0));
 
 	//Squares for left and right views
-	/*	Drawable leftSquare(
-	new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-	new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+/*	Drawable leftSquare(
+		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
 
 	Drawable rightSquare(
-	new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-	new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
-	*/
+		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+*/
 	//TEST vv
 	Drawable leftSquare(
 		new TextureMat(fbLeftEyeDraw.getTexture(GL_COLOR_ATTACHMENT0), TextureMat::POSITION),
@@ -328,7 +318,7 @@ void WindowManager::mainLoop() {
 	SimpleTexShader texShader;
 	SimpleShader shader;
 	TorranceSparrowShader tsShader;
-	TorranceSparrowShader tsTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
+	TorranceSparrowShader tsTexShader({{ GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
 	});
 
 	TrackballCamera savedCam = cam;
@@ -342,10 +332,10 @@ void WindowManager::mainLoop() {
 	fbWindow.use();
 
 	vector<Drawable> drawables;
-	//	loadWavefront("untrackedmodels/OrganodronCity/", "OrganodronCity", &drawables, &tm);
-	//	loadWavefront("untrackedmodels/SciFiCenter/CenterCity/", "scificity", &drawables, &tm);
-	//	loadWavefront("untrackedmodels/lstudio/", "lsystem.obj", &drawables, &tm);
-	//	loadWavefront("untrackedmodels/", "riccoSurface_take2", &drawables, &tm);
+//	loadWavefront("untrackedmodels/OrganodronCity/", "OrganodronCity", &drawables, &tm);
+//	loadWavefront("untrackedmodels/SciFiCenter/CenterCity/", "scificity", &drawables, &tm);
+//	loadWavefront("untrackedmodels/lstudio/", "lsystem.obj", &drawables, &tm);
+//	loadWavefront("untrackedmodels/", "riccoSurface_take2", &drawables, &tm);
 
 	ElementGeometry objGeometry = objToElementGeometry("untrackedmodels/riccoSurface_take3.obj");
 	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &objGeometry));
@@ -358,7 +348,7 @@ void WindowManager::mainLoop() {
 		drawables[i].setPosition(vec3(0, 0, -1.f));
 		drawables[i].setScale(vec3(10.0));
 	}
-
+	
 	vector<vec3> controllerPositions(controllers.size());
 
 	quat perFrameRot = angleAxis(3.14159f / 90.f, vec3(0, 1, 0));
@@ -377,7 +367,7 @@ void WindowManager::mainLoop() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//Get pose
-		vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount,
+		vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, 
 			NULL, 0);
 
 		//Update camera
@@ -394,7 +384,7 @@ void WindowManager::mainLoop() {
 				controllers[i].index,
 				&state,
 				sizeof(vr::VRControllerState_t),
-				&pose))
+				&pose)) 
 			{
 				printf("Error reading controller state\n");
 			}
@@ -407,7 +397,7 @@ void WindowManager::mainLoop() {
 
 		vec3 positionTransform(0.f);
 		quat orientationTransform;
-
+		
 		bool updatePositions = true;
 
 		switch (triggersPressed.size()) {
@@ -438,12 +428,12 @@ void WindowManager::mainLoop() {
 		default:
 			for (int i = 0; i < drawables.size(); i++) {
 				quat orientation = drawables[i].getOrientationQuat();
-				//				drawables[i].setOrientation(normalize(angularVelocity*orientation));
+//				drawables[i].setOrientation(normalize(angularVelocity*orientation));
 				drawables[i].setPosition(drawables[i].getPos() + linearVelocity);
 			}
 
 			//angularVelocity = slerp(angularVelocity, quat(), 0.002f);
-			linearVelocity *= 0.97f;
+			linearVelocity *= 0.995f;
 		}
 
 		if (updatePositions) {
@@ -451,48 +441,48 @@ void WindowManager::mainLoop() {
 				controllerPositions[i] = controllers[i].getPos();
 			}
 		}
-
+		
 
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
 			quat orientation = drawables[i].getOrientationQuat();
 			drawables[i].setOrientation(normalize(orientationTransform*orientation));
 			drawables[i].setPosition(drawables[i].getPos() + positionTransform);
-
+			
 		}
 
-		glEnable(GL_MULTISAMPLE);		//TEST
+//		glEnable(GL_MULTISAMPLE);		//TEST
 		glClearColor(0.f, 0.f, 0.f, 1.f);
 
 		dragon.setPosition(0.5f*vrCam.leftEye.getPosition()
 			+ 0.5f*vrCam.rightEye.getPosition()
 			+ vec3(0, 2, 0));
 
-		/*		//Draw left eye
+/*		//Draw left eye
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
-		tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
+			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 
 		for (int i = 0; i < drawables.size(); i++) {
-		if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-		tsTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
-		}
-		else
-		tsShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+			if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
+				tsTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+			}
+			else
+				tsShader.draw(vrCam.leftEye, lightPos, drawables[i]);
 		}
 
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
-		tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
+			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
-		if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-		tsTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
-		}
-		else
-		tsShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+			if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
+				tsTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+			}
+			else
+				tsShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 		}
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
@@ -511,7 +501,7 @@ void WindowManager::mainLoop() {
 		}
 
 		//Ambient occlusion
-		aoRenderLeft.use();
+		fbLeftEyeRead.use();
 		aoShader.draw(cam, lightPos, leftSquare);
 
 		//Draw right eye
@@ -524,15 +514,12 @@ void WindowManager::mainLoop() {
 		}
 
 		//Ambient occlusion
-		aoRenderRight.use();
+		fbRightEyeRead.use();
 		aoShader.draw(cam, lightPos, rightSquare);
 
 		//TEST ^^ 
 
 		glDisable(GL_MULTISAMPLE);
-
-		blit(aoRenderLeft, fbLeftEyeRead);
-		blit(aoRenderRight, fbRightEyeRead);
 
 		//Draw window
 		fbWindow.use();
@@ -546,8 +533,8 @@ void WindowManager::mainLoop() {
 
 		//Draw headset
 		if (vrDisplay) {
-			vr::Texture_t leftTexture = {
-				(void*)(uintptr_t)fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
+			vr::Texture_t leftTexture = { 
+				(void*)(uintptr_t)fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(), 
 				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::Texture_t rightTexture = {
 				(void*)(uintptr_t)fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
@@ -569,7 +556,7 @@ void WindowManager::mainLoop() {
 
 	delete dragon.getMaterial(ColorMat::id);
 	delete dragon.getMaterial(ShadedMat::id);
-
+	
 	delete sphere.getMaterial(ColorMat::id);
 	delete sphere.getMaterial(ShadedMat::id);
 
@@ -598,7 +585,7 @@ vr::IVRSystem *initVR() {
 		vrDisplay = nullptr;
 		std::cout << "[Error]" << VR_GetVRInitErrorAsSymbol(error) << std::endl;
 	}
-	else if (!vr::VR_GetGenericInterface(vr::IVRRenderModels_Version, &error)) {
+	else if (!vr::VR_GetGenericInterface(vr::IVRRenderModels_Version, &error)){
 		printf("Failed to obtain render models\n");
 		vrDisplay = nullptr;
 	}
@@ -623,10 +610,10 @@ GLFWwindow *createWindow(int width, int height, std::string name)
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
+	
 	GLFWwindow *window = glfwCreateWindow(
 		width, height, name.c_str(), nullptr, nullptr);
-
+	
 	if (window == NULL) {
 		glfwTerminate();
 		return nullptr;

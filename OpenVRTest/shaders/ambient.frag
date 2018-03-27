@@ -1,5 +1,6 @@
 #version 410
 #define M_PI 3.1415926535897932384626433832795
+#define MOD_MAX 8388608
 
 // first output is mapped to the framebuffer's colour index by default
 out vec4 PixelColour;
@@ -10,22 +11,29 @@ uniform vec3 camera_position;
 uniform vec3 cam_up;
 uniform vec3 cam_right;
 
-uniform sampler2D positionTex;
-uniform sampler2D normalTex;
+uniform sampler2DMS positionTex;
+uniform sampler2DMS normalTex;
 
 uniform vec3 lightPos;
 
-const float MAX_DIST = 0.2;
-const int NUM_SAMPLES = 20;
+const float MAX_DIST = 0.05;
+const int NUM_SAMPLES = 10;
 const float SAMPLE_STEP = MAX_DIST/float(NUM_SAMPLES-1);
-const int NUM_DIRECTIONS = 32;
+const int NUM_DIRECTIONS = 6 ;
 const float ROT_ANGLE = (2.0*M_PI)/float(NUM_DIRECTIONS);
 const float THRESHOLD = 0.1;
 
-const float ks = 0.2;
-const float kd = 0.2;
+const float ks = 0.3;
+const float kd = 0.3;
 const float ka = 0.6;
-const float alpha = 10.0;
+const float alpha = 50.0;
+
+float texWidth;
+float texHeight;
+
+vec3 texAccess(sampler2DMS texName, vec2 texCoord){
+	return texelFetch(texName, ivec2(texCoord.x*texWidth, texCoord.y*texHeight), gl_SampleID).rgb;
+}
 
 vec3 getTangentOfNormal(vec3 normal, vec3 direction){
 	vec3 n_proj_d = dot(normal, direction)/dot(direction, direction)*direction;
@@ -50,14 +58,14 @@ float calculateAmbientOcclusion(vec3 position, vec3 normal, vec2 texDir){
 
 	for(int i=0; i<NUM_SAMPLES; i++){
 		texPos += texDir*SAMPLE_STEP;
-		vec3 samplePos = texture(positionTex, texPos).rgb;
+		vec3 samplePos = texAccess(positionTex, texPos).rgb;
 
 		//If point is not the clear color
 		if(length(samplePos - vec3(0, 0, 0)) > 0.00001){
 			vec3 sampleDir = normalize(samplePos - position);
 			if(dot(sampleDir, normal) > 0.0){
 //				float cos_theta = dot(sampleDir, tangent);
-				float r = length(samplePos - position)/MAX_DIST;
+				float r = length(samplePos - position)/MAX_DIST/length(camera_position-position);
 				float occlusion = max(dot(sampleDir, normal)-THRESHOLD, 0.0)*(1.0-r*r);	//*1.0/length(samplePos - position); 	//1.0 - cos_theta*cos_theta;
 				if(occlusion > maxOcclusion)
 					maxOcclusion = occlusion;
@@ -71,8 +79,8 @@ float calculateAmbientOcclusion(vec3 position, vec3 normal, vec2 texDir){
 float calculateAmbientOcclusion(){
 	float totalOcclusion = 0.0;
 
-	vec3 position = texture(positionTex, FragmentTexCoord).rgb;
-	vec3 normal = normalize(texture(normalTex, FragmentTexCoord).rgb);
+	vec3 position = texAccess(positionTex, FragmentTexCoord).rgb;
+	vec3 normal = normalize(texAccess(normalTex, FragmentTexCoord).rgb);
 
 	float angle = M_PI*2.0*rand(position.xy);
 
@@ -89,11 +97,18 @@ float torranceSparrowLighting(vec3 normal, vec3 position, vec3 viewPosition)
 {
 	vec3 viewer = normalize(viewPosition - position);
 	vec3 light = normalize(lightPos - position);
+	float attenuation = 1.f; //320.f/(length(position - lightPos)*length(position-lightPos));
 
 	vec3 h = normalize(viewer + light);
+	//Formula found here: http://www.farbrausch.de/~fg/stuff/phong.pdf
+	float normalizationFactor = (alpha+2)*(alpha+4)/(8*M_PI*(pow(sqrt(2), -alpha)+alpha));
+//	energyConservation = (alpha+2.0)*(0.5/M_PI);
+	
+/*	return max(dot(normal, light), 0)*ks*(alpha+2.0)*(0.5/M_PI) * pow(clamp(dot(normal, h), 0.0, 1.0), alpha)
+			+ kd*clamp(dot(normal, light), 0.0, 1.0);*/
+	return max(dot(normal, light), 0)* (ks*normalizationFactor * pow(clamp(dot(normal, h), 0.0, 1.0), alpha)
+			+ kd*clamp(dot(normal, light), 0.0, 1.0))*attenuation;
 
-	return ks*(alpha+2.0)*(0.5/M_PI) * pow(clamp(dot(normal, h), 0.0, 1.0), alpha)
-			+ kd*clamp(dot(normal, light), 0.0, 1.0);
 }
 
 float phongLighting(vec3 normal, vec3 position, vec3 viewPosition)
@@ -107,18 +122,25 @@ float phongLighting(vec3 normal, vec3 position, vec3 viewPosition)
 			+ kd*clamp(dot(normal, light), 0.0, 1.0);
 }
 
+
 void main(void)
 {
+	ivec2 texDim = textureSize(positionTex);
+	texWidth = float(texDim.x);
+	texHeight = float(texDim.y);
+
 	//PixelColour = vec4(normalize(texture(normalTex, FragmentTexCoord).rgb), 1);
 	float ambientOcclusion = calculateAmbientOcclusion();
-	vec3 position = texture(positionTex, FragmentTexCoord).rgb;
+	vec3 position = texAccess(positionTex, FragmentTexCoord).rgb;
+
+	vec3 color = vec3(1, 1, 1);
 
 	if(length(position - vec3(0, 0, 0)) < 0.00001)
 		PixelColour = vec4(0, 0, 0, 1);
 	else{
-		vec3 normal = normalize(texture(normalTex, FragmentTexCoord).rgb);
-		float lighting = phongLighting(normal, position, camera_position);
-		PixelColour = vec4(vec3(1, 1, 1)*((1-ambientOcclusion)*ka + lighting), 1);
+		vec3 normal = normalize(texAccess(normalTex, FragmentTexCoord).rgb);
+		float lighting = torranceSparrowLighting(normal, position, camera_position);
+		PixelColour = vec4(color*((1-ambientOcclusion)*ka + lighting), 1);
 	}
 
 }

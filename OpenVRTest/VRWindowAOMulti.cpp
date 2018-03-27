@@ -199,14 +199,14 @@ void WindowManager::mainLoop() {
 
 	if (!fbLeftEyeDraw.addTexture(
 		createTexture2DMulti(
-			TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+			TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbLeftEyeDraw.addTexture(
 			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
 			GL_DEPTH_ATTACHMENT) ||
 		!fbLeftEyeDraw.addTexture(
 			createTexture2DMulti(
-				TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+				TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
 			GL_COLOR_ATTACHMENT1))
 	{
 		std::cout << "FBO creation failed" << endl;
@@ -214,14 +214,14 @@ void WindowManager::mainLoop() {
 
 	if (!fbRightEyeDraw.addTexture(
 		createTexture2DMulti(
-			TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+			TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
 		GL_COLOR_ATTACHMENT0) ||
 		!fbRightEyeDraw.addTexture(
 			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
 			GL_DEPTH_ATTACHMENT) ||
 		!fbRightEyeDraw.addTexture(
 			createTexture2DMulti(
-				TexInfo(GL_TEXTURE_2D_MULTISAMPLE, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
+				TexInfo(GL_TEXTURE_2D, { int(TEX_WIDTH), int(TEX_HEIGHT) }, 0, GL_RGB, GL_RGB16F, GL_FLOAT), &tm, NUM_SAMPLES),
 			GL_COLOR_ATTACHMENT1))
 	{
 		std::cout << "FBO creation failed" << endl;
@@ -347,12 +347,12 @@ void WindowManager::mainLoop() {
 	//	loadWavefront("untrackedmodels/lstudio/", "lsystem.obj", &drawables, &tm);
 	//	loadWavefront("untrackedmodels/", "riccoSurface_take2", &drawables, &tm);
 
-	ElementGeometry objGeometry = objToElementGeometry("untrackedmodels/riccoSurface_take3.obj");
+/*	ElementGeometry objGeometry = objToElementGeometry("untrackedmodels/riccoSurface_take3.obj");
 	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &objGeometry));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 1, 1)));
+*/
 
-
-//	drawables.push_back(dragon);
+	drawables.push_back(dragon);
 
 	for (int i = 0; i < drawables.size(); i++) {
 		drawables[i].setPosition(vec3(0, 0, -1.f));
@@ -461,7 +461,7 @@ void WindowManager::mainLoop() {
 
 		}
 
-		glEnable(GL_MULTISAMPLE);		//TEST
+		//		glEnable(GL_MULTISAMPLE);		//TEST
 		glClearColor(0.f, 0.f, 0.f, 1.f);
 
 		dragon.setPosition(0.5f*vrCam.leftEye.getPosition()

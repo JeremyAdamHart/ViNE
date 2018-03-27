@@ -23,5 +23,5 @@ void main()
 	    vec4 normal = model_matrix*vec4(VertexNormal, 0.0);
 	    ModelNormal = normal.xyz;
     #endif
-    gl_Position = view_projection_matrix*model_matrix*vec4(VertexPosition, 1.0);
+    gl_Position = view_projection_matrix*ModelPosition;
 }
