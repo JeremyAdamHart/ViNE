@@ -26,6 +26,13 @@ headsetPose(headsetPose), leftEyeTransform(1.f), rightEyeTransform(1.f)
 {
 	setEyeTransforms(vrDisplay);
 	setProjection(vrDisplay);
+
+/*	float pfLeft, pfRight, pfTop, pfBottom;
+
+	vrDisplay->GetProjectionRaw(vr::Eye_Left, &pfLeft, &pfRight, &pfTop, &pfBottom);
+	printf("Left angle = %f\nRight angle = %f\nTop Angle = %f\nBottom angle = %f\n",
+		pfLeft, pfRight, pfTop, pfBottom);
+*/
 }
 
 /*mat4 toMat4(const vr::HmdMatrix44_t &hmdMat) {

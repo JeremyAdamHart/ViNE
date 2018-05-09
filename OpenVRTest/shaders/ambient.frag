@@ -17,7 +17,7 @@ uniform sampler2DMS normalTex;
 uniform vec3 lightPos;
 
 const float MAX_DIST = 0.05;
-const int NUM_SAMPLES = 10;
+const int NUM_SAMPLES = 8;
 const float SAMPLE_STEP = MAX_DIST/float(NUM_SAMPLES-1);
 const int NUM_DIRECTIONS = 6 ;
 const float ROT_ANGLE = (2.0*M_PI)/float(NUM_DIRECTIONS);

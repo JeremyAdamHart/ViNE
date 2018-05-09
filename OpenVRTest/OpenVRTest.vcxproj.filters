@@ -47,5 +47,8 @@
     <ClInclude Include="VRController.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="kd_tree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
