@@ -5,6 +5,6 @@
 
 int main()
 {
-	WindowManager wm(800, 400, "OpenVR Test");
+	WindowManager wm(1600, 800, "OpenVR Test");
 	wm.paintingLoop();
 }

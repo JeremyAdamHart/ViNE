@@ -509,7 +509,7 @@ void WindowManager::paintingLoop() {
 	Framebuffer fbLeftEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 
-	const int NUM_SAMPLES = 8;
+	const int NUM_SAMPLES = 16;
 
 	if (!fbLeftEyeDraw.addTexture(
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
@@ -666,7 +666,6 @@ void WindowManager::paintingLoop() {
 
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
-			quat orientation = drawables[i].getOrientationQuat();
 			drawables[i].setOrientation(sceneTransform.getOrientationQuat());
 			drawables[i].setPosition(sceneTransform.getPos());
 			drawables[i].setScale(vec3(sceneTransform.scale));
@@ -676,7 +675,7 @@ void WindowManager::paintingLoop() {
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < controllers.size(); i++) {
 			if (controllers[i].buttons[VRController::TRIGGER_BUTTON]) {
-				vec3 pos = controllers[0].getPos();
+				vec3 pos = controllers[i].getPos();
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				sphere.setPosition(vec3(sceneTransform.getTransform()*vec4(pos, 1)));
@@ -771,6 +770,18 @@ void WindowManager::paintingLoop() {
 			streamGeometry.modify<COLOR>(neighbours[i].index, 0);
 		}
 		*/
+
+		if (frameTimeSamples > 30) {
+			double currentTime = glfwGetTime();
+			frameTime = currentTime - lastTime;
+			cout << "Time per frame = " << frameTime/double(frameTimeSamples) << endl;
+			frameTimeSamples = 0;
+			lastTime = currentTime;
+		}
+		else {
+			frameTimeSamples++;
+		}
+
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}

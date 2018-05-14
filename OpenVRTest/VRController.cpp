@@ -139,6 +139,9 @@ void VRSceneTransform::multMatrixOldOpenGL() {
 //Not currently incorporating time - FIX
 void VRSceneTransform::updateTransform(float deltaTime) {
 
+	static vec3 rotationCenter = vec3(0.f, 0.f, 0.f);
+	float scaleChange = 1.f;
+
 	//Get indices of controllers which have the grip pressed
 	std::vector<int> gripsPressed;
 	for (int i = 0; i < controllers->size(); i++) {
@@ -167,7 +170,10 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		axisA = axisA / lengthA;
 		axisB = axisB / lengthB;
 
-		scale *= lengthB / lengthA;		//Rescale model
+		scaleChange = lengthB / lengthA;
+		scale *= scaleChange;		//Rescale model
+
+		rotationCenter = 0.5f*(controllers->at(0).getPos() + controllers->at(1).getPos());
 
 		vec3 rotAxis = cross(axisA, axisB);
 		if (length(rotAxis) > 0.0001f) {
@@ -185,6 +191,9 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 	}
 
 	//Integrate velocities
+	position = vec3(
+		toMat4(normalize(angularVelocity))*vec4(scaleChange*(position - rotationCenter), 1))
+		+ rotationCenter;
 	position += velocity;
 	orientation = normalize(angularVelocity*orientation);
 
