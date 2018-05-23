@@ -77,6 +77,7 @@ void VRController::updateState(const vr::VRControllerState_t &state) {
 	buttons[GRIP_BUTTON] = vr::ButtonMaskFromId(vr::k_EButton_Grip) & state.ulButtonPressed;
 	buttons[TRIGGER_BUTTON] = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Trigger) & state.ulButtonPressed;
 	buttons[TRACKPAD_BUTTON] = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad) & state.ulButtonPressed;
+	buttons[MENU_BUTTON] = vr::ButtonMaskFromId(vr::k_EButton_ApplicationMenu) & state.ulButtonPressed;
 	trackpadTouched = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad) & state.ulButtonTouched;
 }
 
@@ -91,12 +92,13 @@ void VRController::loadModelMatrixOldOpenGL() const {
 
 VRSceneTransform::VRSceneTransform() :
 	Object(vec3(0.f), quat()), scale(1.f),
-	velocity(0.f), angularVelocity(), controllers(nullptr) {}
+	velocity(0.f), angularVelocity(), controllers(nullptr), 
+	rotationMode(ONE_HAND_PLUS_SCALE), rotationOrigin(ORIGIN_MODEL) {}
 
 
 VRSceneTransform::VRSceneTransform(vector<VRController> *controllers) :
 	Object(vec3(0.f), quat()), scale(1.f),
-	velocity(0.f), angularVelocity(), controllers(controllers) {
+	velocity(0.f), angularVelocity(), controllers(controllers), rotationMode(ONE_HAND_PLUS_SCALE), rotationOrigin(ORIGIN_MODEL) {
 	linkControllers(controllers);
 }
 
@@ -110,6 +112,8 @@ void VRSceneTransform::linkControllers(vector<VRController> *newControllers) {
 		lastOrientation[i] = controllers->at(i).getOrientationQuat();
 	}
 }
+
+void VRSceneTransform::setPosition(glm::vec3 newPos) { position = newPos; }
 
 mat4 VRSceneTransform::getTransform() const {
 	mat4 rigidTransform = Object::getTransform();
@@ -136,6 +140,29 @@ void VRSceneTransform::multMatrixOldOpenGL() {
 	glMultMatrixf(&transform[0][0]);
 }
 
+vec3 makePerpendicular(vec3 vector, vec3 perpendicularTo) {
+	vec3 proj = dot(vector, perpendicularTo) / dot(perpendicularTo, perpendicularTo)*perpendicularTo;
+	vec3 perpendicular = vector - proj;
+	float magnitude = length(perpendicular);
+	if (magnitude > 0.000001)
+		return perpendicular / magnitude;
+	else
+		return vec3(0);
+}
+
+vec3 toVec3(quat q) { return vec3(q.x, q.y, q.z); }
+
+quat projectedQuaternionDiff(quat a, quat b, vec3 projAxis) {
+	quat diffQuat = normalize(b)*inverse(normalize(a));
+	float sinTheta = dot(normalize(projAxis), toVec3(diffQuat));
+	float w = sqrt(1 - sinTheta*sinTheta);
+	return quat(w, float(sinTheta)*normalize(projAxis));
+}
+
+quat quaternionDiff(quat a, quat b) {
+	return normalize(normalize(b)*inverse(normalize(a)));
+}
+
 //Not currently incorporating time - FIX
 void VRSceneTransform::updateTransform(float deltaTime) {
 
@@ -154,7 +181,8 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 	{
 		int index = gripsPressed[0];
 		velocity = controllers->at(index).getPos() - lastPosition[index];
-		angularVelocity = quat();
+		angularVelocity = slerp(angularVelocity, quat(), 0.1f);
+	//	angularVelocity = quat();
 		break;
 	}
 	case 2:
@@ -162,38 +190,62 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		int indexA = gripsPressed[0];
 		int indexB = gripsPressed[1];
 
+		velocity = vec3(0.f);
+		angularVelocity = quat();
+
 		vec3 axisA = lastPosition[indexA] - lastPosition[indexB];
 		vec3 axisB = controllers->at(indexA).getPos()
 			- controllers->at(indexB).getPos();
 		float lengthA = length(axisA);
 		float lengthB = length(axisB);
-		axisA = axisA / lengthA;
-		axisB = axisB / lengthB;
 
+		if (rotationMode == HANDLEBAR) {
+			axisA = axisA / lengthA;
+			axisB = axisB / lengthB;
+
+
+			rotationCenter = 0.5f*(controllers->at(0).getPos() + controllers->at(1).getPos());
+
+
+			vec3 rotAxis = cross(axisA, axisB);
+			if (length(rotAxis) > 0.0001f) {
+				float angle = asin(length(rotAxis));
+				angularVelocity = angleAxis(angle, normalize(rotAxis));
+			}
+		}
+		else if(rotationMode == ONE_HAND_PLUS_SCALE){
+			quat lastOrntnA = lastOrientation[indexA];
+			quat lastOrntnB = lastOrientation[indexB];
+			quat currOrntnA = controllers->at(indexA).getOrientationQuat();
+			quat currOrntnB = controllers->at(indexB).getOrientationQuat();
+
+			quat orntnDiffA = projectedQuaternionDiff(lastOrntnA, currOrntnA, axisB);
+			quat orntnDiffB = projectedQuaternionDiff(lastOrntnB, currOrntnB, axisB);
+			orntnDiffB = quaternionDiff(lastOrntnB, currOrntnB);
+			angularVelocity = orntnDiffB;
+			rotationCenter = controllers->at(indexB).getPos();
+
+		}
+		
 		scaleChange = lengthB / lengthA;
 		scale *= scaleChange;		//Rescale model
 
-		rotationCenter = 0.5f*(controllers->at(0).getPos() + controllers->at(1).getPos());
-
-		vec3 rotAxis = cross(axisA, axisB);
-		if (length(rotAxis) > 0.0001f) {
-			float angle = asin(length(rotAxis));
-			angularVelocity = angleAxis(angle, normalize(rotAxis));
-		}
-		velocity = vec3(0.f);
 		break;
 	}
 	default:
 	{
 		velocity *= 0.99f;
-		angularVelocity = slerp(angularVelocity, quat(), 0.01f);
+		angularVelocity = slerp(angularVelocity, quat(), 0.1f);
 	}
 	}
 
 	//Integrate velocities
-	position = vec3(
-		toMat4(normalize(angularVelocity))*vec4(scaleChange*(position - rotationCenter), 1))
-		+ rotationCenter;
+	//Scene centered rotation
+	if (rotationOrigin == ORIGIN_CONTROLLER) {
+		position = vec3(
+			toMat4(normalize(angularVelocity))*vec4(scaleChange*(position - rotationCenter), 1))
+			+ rotationCenter;
+	}
 	position += velocity;
 	orientation = normalize(angularVelocity*orientation);
 

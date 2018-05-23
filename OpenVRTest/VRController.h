@@ -42,10 +42,22 @@ public:
 	VRSceneTransform();
 	VRSceneTransform(std::vector<VRController> *controllers);
 
+	//Rotation modes
+	enum {
+		HANDLEBAR,
+		ONE_HAND_PLUS_SCALE,
+		ORIGIN_CONTROLLER,
+		ORIGIN_MODEL
+	};
+
 	float scale;
 
 	glm::vec3 velocity;
 	glm::quat angularVelocity;
+	int rotationMode;
+	int rotationOrigin;
+
+	void setPosition(glm::vec3 position);
 
 	glm::mat4 getTransform() const override;
 	void updateTransform(float deltaTime);

@@ -28,6 +28,7 @@ using namespace std;
 //Painting
 #include "StreamGeometry.h"
 #include "ColorShader.h"
+#include "ColorSetMat.h"
 #include "kd_tree.h"
 
 #include "VRController.h"
@@ -573,7 +574,7 @@ void WindowManager::paintingLoop() {
 	TorranceSparrowShader tsTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
 	});
 	TorranceSparrowShader tsShader;
-	ColorShader colorShader;
+	ColorShader colorShader(2);
 
 	TrackballCamera savedCam = cam;
 
@@ -594,18 +595,18 @@ void WindowManager::paintingLoop() {
 	enum {
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
-//	MeshInfoLoader minfo("models/dragon.obj");
-	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
-	StreamGeometry<vec3, vec3, char> streamGeometry(minfo.vertices.size(),
+	MeshInfoLoader minfo("models/dragon.obj");
+//	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
+	StreamGeometry<vec3, vec3, unsigned char> streamGeometry(minfo.vertices.size(),
 	{ false, false, true });
 	streamGeometry.loadElementArray(minfo.indices.size(), GL_STATIC_DRAW, minfo.indices.data());
-	vector<char> colors(minfo.vertices.size(), 0);
+	vector<unsigned char> colors(minfo.vertices.size(), 0);
 	streamGeometry.loadBuffer<POSITION>(minfo.vertices.data());
 	streamGeometry.loadBuffer<NORMAL>(minfo.normals.data());
 	streamGeometry.loadBuffer<COLOR>(colors.data());
 
 	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &streamGeometry));
-	drawables[0].addMaterial(new ColorMat(vec3(1, 1, 1)));
+	drawables[0].addMaterial(new ColorSetMat({vec3(0, 1, 0), vec3(1, 0, 0)}));
 
 	//Setup KDTree
 	vector<IndexVec3> vertIndexPair;
@@ -629,6 +630,7 @@ void WindowManager::paintingLoop() {
 	quat angularVelocity = quat();
 
 	VRSceneTransform sceneTransform(&controllers);
+	sceneTransform.setPosition(vec3(0.f, 1.f, -1.f));
 
 	//Updating
 	int counter = 0;
@@ -645,7 +647,12 @@ void WindowManager::paintingLoop() {
 		vrCam.update();
 		vrCam.setProjection(vrDisplay, 0.2f, 400.f);
 
+		vec2 trackpadDir[4] = { vec2(0, 1), vec2(1, 0), vec2(0, -1), vec2(-1, 0) };
+
 		//Update controllers
+		static vector<bool> modeSwitchButton(controllers.size(), false);
+		static int drawMode = 0;
+		bool buttonChanged = false;
 		for (int i = 0; i < controllers.size(); i++) {
 			vr::VRControllerState_t state;
 			vr::TrackedDevicePose_t pose;
@@ -661,6 +668,47 @@ void WindowManager::paintingLoop() {
 
 			controllers[i].updatePose(poses[controllers[i].index]);
 			controllers[i].updateState(state);
+			//Switch rotation mode with menu button
+			if (modeSwitchButton[i] && !controllers[i].buttons[VRController::MENU_BUTTON]) {
+				buttonChanged = true;
+			}
+			modeSwitchButton[i] = controllers[i].buttons[VRController::MENU_BUTTON];
+			//Switch rotation with trackpad
+			float maxDot = -1.f;
+			if (controllers[i].trackpadTouched) {
+				for (int j = 0; j < 4; j++) {
+					float newDot = dot(controllers[i].axes[VRController::TRACKPAD_AXIS], trackpadDir[j]);
+					if (newDot > maxDot) {
+						maxDot = newDot;
+						drawMode = j;
+					}
+				}
+				buttonChanged = true;
+			}
+		}
+		if (buttonChanged) {
+			switch (drawMode) {
+			case 0:
+				sceneTransform.rotationMode = VRSceneTransform::ONE_HAND_PLUS_SCALE;
+				sceneTransform.rotationOrigin = VRSceneTransform::ORIGIN_MODEL;
+				printf("Mode: OH + Scale\nOrigin: Model\n");
+				break;
+			case 1:
+				sceneTransform.rotationMode = VRSceneTransform::ONE_HAND_PLUS_SCALE;
+				sceneTransform.rotationOrigin = VRSceneTransform::ORIGIN_CONTROLLER;
+				printf("Mode: OH + Scale\nOrigin: Controller\n");
+				break;
+			case 2:
+				sceneTransform.rotationMode = VRSceneTransform::HANDLEBAR;
+				sceneTransform.rotationOrigin = VRSceneTransform::ORIGIN_MODEL;
+				printf("Mode: Handlebar\nOrigin: Model\n");
+				break;
+			case 3:
+				sceneTransform.rotationMode = VRSceneTransform::HANDLEBAR;
+				sceneTransform.rotationOrigin = VRSceneTransform::ORIGIN_CONTROLLER;
+				printf("Mode: Handlebar\nOrigin: Controller\n");
+				break;
+			}
 		}
 		sceneTransform.updateTransform(0.f);	//Not using time yet
 
@@ -687,7 +735,7 @@ void WindowManager::paintingLoop() {
 					neighbours);
 			}
 		}
-		char *color = streamGeometry.vboPointer<COLOR>();
+		unsigned char *color = streamGeometry.vboPointer<COLOR>();
 		for (int i = 0; i < neighbours.size(); i++) {
 			streamGeometry.modify<COLOR>(neighbours[i].index, drawColor);
 		}
@@ -721,7 +769,7 @@ void WindowManager::paintingLoop() {
 			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 		tsShader.draw(vrCam.leftEye, lightPos, sphere);
 		for (int i = 0; i < drawables.size(); i++) {
-			colorShader.draw(vrCam.leftEye, drawables[i]);		//Add lightPos and colorMat checking
+			colorShader.draw(vrCam.leftEye, lightPos, drawables[i]);		//Add lightPos and colorMat checking
 		}
 
 		//Draw right eye
@@ -732,7 +780,7 @@ void WindowManager::paintingLoop() {
 			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		tsShader.draw(vrCam.rightEye, lightPos, sphere);
 		for (int i = 0; i < drawables.size(); i++) {
-			colorShader.draw(vrCam.rightEye, drawables[i]);
+			colorShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 		}
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
