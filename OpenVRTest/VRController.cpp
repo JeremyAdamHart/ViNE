@@ -93,12 +93,12 @@ void VRController::loadModelMatrixOldOpenGL() const {
 VRSceneTransform::VRSceneTransform() :
 	Object(vec3(0.f), quat()), scale(1.f),
 	velocity(0.f), angularVelocity(), controllers(nullptr), 
-	rotationMode(ONE_HAND_PLUS_SCALE), rotationOrigin(ORIGIN_MODEL) {}
+	rotationMode(HANDLEBAR), rotationOrigin(ORIGIN_CONTROLLER) {}
 
 
 VRSceneTransform::VRSceneTransform(vector<VRController> *controllers) :
 	Object(vec3(0.f), quat()), scale(1.f),
-	velocity(0.f), angularVelocity(), controllers(controllers), rotationMode(ONE_HAND_PLUS_SCALE), rotationOrigin(ORIGIN_MODEL) {
+	velocity(0.f), angularVelocity(), controllers(controllers), rotationMode(HANDLEBAR), rotationOrigin(ORIGIN_CONTROLLER) {
 	linkControllers(controllers);
 }
 
@@ -168,6 +168,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 
 	static vec3 rotationCenter = vec3(0.f, 0.f, 0.f);
 	float scaleChange = 1.f;
+	static int lastGripsPressed = 0;
 
 	//Get indices of controllers which have the grip pressed
 	std::vector<int> gripsPressed;
@@ -199,29 +200,35 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		float lengthA = length(axisA);
 		float lengthB = length(axisB);
 
+		quat lastOrntnA = lastOrientation[indexA];
+		quat lastOrntnB = lastOrientation[indexB];
+		quat currOrntnA = controllers->at(indexA).getOrientationQuat();
+		quat currOrntnB = controllers->at(indexB).getOrientationQuat();
+
 		if (rotationMode == HANDLEBAR) {
 			axisA = axisA / lengthA;
 			axisB = axisB / lengthB;
 
-
+			vec3 lastRotationCenter = rotationCenter;
 			rotationCenter = 0.5f*(controllers->at(0).getPos() + controllers->at(1).getPos());
 
+			if (lastGripsPressed == 2) {
+				velocity = rotationCenter - lastRotationCenter;
+			}
 
 			vec3 rotAxis = cross(axisA, axisB);
 			if (length(rotAxis) > 0.0001f) {
 				float angle = asin(length(rotAxis));
-				angularVelocity = angleAxis(angle, normalize(rotAxis));
+
+				//Rolling
+				quat orntnDiffA = projectedQuaternionDiff(lastOrntnA, currOrntnA, axisB);
+				quat orntnDiffB = projectedQuaternionDiff(lastOrntnB, currOrntnB, axisB);
+
+				angularVelocity = normalize(0.5f*(orntnDiffB+orntnDiffA))*angleAxis(angle, normalize(rotAxis));
 			}
 		}
 		else if(rotationMode == ONE_HAND_PLUS_SCALE){
-			quat lastOrntnA = lastOrientation[indexA];
-			quat lastOrntnB = lastOrientation[indexB];
-			quat currOrntnA = controllers->at(indexA).getOrientationQuat();
-			quat currOrntnB = controllers->at(indexB).getOrientationQuat();
-
-			quat orntnDiffA = projectedQuaternionDiff(lastOrntnA, currOrntnA, axisB);
-			quat orntnDiffB = projectedQuaternionDiff(lastOrntnB, currOrntnB, axisB);
-			orntnDiffB = quaternionDiff(lastOrntnB, currOrntnB);
+			quat orntnDiffB = quaternionDiff(lastOrntnB, currOrntnB);
 			angularVelocity = orntnDiffB;
 			rotationCenter = controllers->at(indexB).getPos();
 
@@ -254,6 +261,8 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		lastPosition[i] = controllers->at(i).getPos();
 		lastOrientation[i] = controllers->at(i).getOrientationQuat();
 	}
+
+	lastGripsPressed = gripsPressed.size();
 }
 
 bool VRSceneTransform::multMatrixPreviewTransform(float modelScale) {

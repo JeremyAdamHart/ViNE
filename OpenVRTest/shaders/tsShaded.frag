@@ -13,7 +13,7 @@ uniform vec3 camera_position;
 #ifdef USING_TEXTURE
 	uniform sampler2D colorTexture;
 #else
-	uniform vec3 color;
+	uniform vec4 color;
 #endif
 
 
@@ -33,27 +33,19 @@ float torranceSparrowLighting(vec3 normal, vec3 position, vec3 viewPosition)
 			+ kd*clamp(dot(normal, light), 0.0, 1.0) + ka;
 }
 
-float phongLighting(vec3 normal, vec3 position, vec3 viewPosition)
-{
-	vec3 viewer = normalize(viewPosition - position);
-	vec3 light = normalize(lightPos - position);
-	vec3 h = normalize(viewer + light);
-	vec3 r = 2.0*dot(light, normal)*normal - light; 
-
-	return ks*clamp(pow(dot(normal, r), alpha), 0.0, 1.0)
-			+ kd*clamp(dot(normal, light), 0.0, 1.0) + ka;
-}
-
 void main(void)
 {
 	#ifdef USING_TEXTURE
 		vec3 baseColor = texture(colorTexture, vec2(FragmentTexCoord.x, FragmentTexCoord.y)).rgb;
+		float alpha = 1.0;
 	//	baseColor = vec3(0.0, 1-FragmentTexCoord.y, 0.0);
 	#else
-		vec3 baseColor = color;
+		vec3 baseColor = color.xyz;
+		float alpha = color.a;
 	#endif
 
- 	vec3 color = torranceSparrowLighting(normalize(FragmentNormal), ModelPosition, camera_position)
+ 	vec3 shadedColor = torranceSparrowLighting(normalize(FragmentNormal), ModelPosition, camera_position)
  	*baseColor;
- 	PixelColour = vec4(color, 1);
+
+ 	PixelColour = vec4(shadedColor, alpha);
 }

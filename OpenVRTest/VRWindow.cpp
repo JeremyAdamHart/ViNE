@@ -466,6 +466,39 @@ namespace spatial {
 template<> constexpr uint16_t dimensions<IndexVec3>() { return 3; }
 }
 
+//Kalaxy - https://stackoverflow.com/questions/485525/round-for-float-in-c/4660122#4660122
+int round_int(float val) {
+	return (val > 0.f) ? (val + 0.5f) : (val - 0.5f);
+}
+
+float makeAnglePositive(float theta) {
+	return mod(mod(theta, 2.f*PI) + 2.f*PI, 2.f*PI);
+}
+
+//Red at top, green at bottom right, blue at bottom left
+vec3 angleToColor(float theta) {
+	float u = mod(mod(theta / (2.f*PI), 1.f) + 1.f, 1.f);	//Positive modulo 1
+	vec3 color(1, 1, 1);
+	if (u < 1.f / 3.f) {
+		float v = 3.f*u;
+		color = (1 - v)*vec3(1, 0, 0) + v*vec3(0, 1, 0);
+	} else if(u < 2.f/3.f){
+		float v = 3.f*u - 1.f;
+		color = (1 - v)*vec3(0, 1, 0) + v*vec3(0, 0, 1);
+	} else {
+		float v = 3.f*u - 2.f;
+		color = (1 - v)*vec3(0, 0, 1) + v*vec3(1, 0, 0);
+	}
+
+	return normalize(color);
+}
+
+int axisToIndex(vec2 axis, int numIndices) {
+	float theta = fmod(fmod(atan2(axis.y, axis.x), 2.f*PI) + 2.f*PI, 2.f*PI);
+	float u = theta / (2.f*PI);
+	int index =  round_int(u*float(numIndices)) % numIndices;
+	return index;
+}
 
 void WindowManager::paintingLoop() {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
@@ -473,23 +506,23 @@ void WindowManager::paintingLoop() {
 	vec3 points[6] = {
 		//First triangle
 		vec3(-0.5f, 0.5f, 0.f)*2.f,
-		vec3(0.5f, 0.5f, 0.f)*2.f,
 		vec3(0.5f, -0.5f, 0.f)*2.f,
+		vec3(0.5f, 0.5f, 0.f)*2.f,
 		//Second triangle
 		vec3(0.5f, -0.5f, 0.f)*2.f,
-		vec3(-0.5f, -0.5f, 0.f)*2.f,
-		vec3(-0.5f, 0.5f, 0.f)*2.f
+		vec3(-0.5f, 0.5f, 0.f)*2.f,
+		vec3(-0.5f, -0.5f, 0.f)*2.f
 	};
 
 	vec2 coords[6] = {
 		//First triangle
 		vec2(1, 0.f),
-		vec2(0.f, 0.f),
 		vec2(0.f, 1.f),
+		vec2(0.f, 0.f),
 		//Second triangle
 		vec2(0.f, 1.f),
-		vec2(1.f, 1.f),
-		vec2(1.f, 0.f)
+		vec2(1.f, 0.f),
+		vec2(1.f, 1.f)
 	};
 
 	SimpleTexManager tm;
@@ -574,7 +607,7 @@ void WindowManager::paintingLoop() {
 	TorranceSparrowShader tsTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
 	});
 	TorranceSparrowShader tsShader;
-	ColorShader colorShader(2);
+	SimpleShader simpleShader;
 
 	TrackballCamera savedCam = cam;
 
@@ -584,14 +617,31 @@ void WindowManager::paintingLoop() {
 
 	vector<Drawable> drawables;
 
+	//Drawing sphere
+	float sphereTransparency = 0.2f;
+	float drawRadius = 0.05f;
 	ElementGeometry sphereGeom = objToElementGeometry("models/icosphere.obj");
-	Drawable sphere (new ColorMat(vec3(0, 1, 0)), &sphereGeom);
-	sphere.addMaterial(new ShadedMat(0.3, 0.4, 0.4, 10.f));
-	sphere.setScale(vec3(0.05f));
+	Drawable sphere (new ColorMat(vec4(0.8, 0.8, 1, sphereTransparency)), &sphereGeom);
+	sphere.setScale(vec3(drawRadius));
+
+	//Set up transparency
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
 
 	/////////////////////////	
 	// STREAM GEOMETRY SETUP
 	/////////////////////////
+	//Generate color set
+	vector<vec3> colorSet;
+	int COLOR_NUM = 256;
+	for (int i = 0; i < COLOR_NUM; i++) {
+		float angle = float(i)/float(COLOR_NUM)*2.f*PI;
+		colorSet.push_back(angleToColor(angle));
+	}
+	ColorShader colorShader(colorSet.size());
+
 	enum {
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
@@ -600,13 +650,13 @@ void WindowManager::paintingLoop() {
 	StreamGeometry<vec3, vec3, unsigned char> streamGeometry(minfo.vertices.size(),
 	{ false, false, true });
 	streamGeometry.loadElementArray(minfo.indices.size(), GL_STATIC_DRAW, minfo.indices.data());
-	vector<unsigned char> colors(minfo.vertices.size(), 0);
+	vector<unsigned char> colors(minfo.vertices.size(), 60);
 	streamGeometry.loadBuffer<POSITION>(minfo.vertices.data());
 	streamGeometry.loadBuffer<NORMAL>(minfo.normals.data());
 	streamGeometry.loadBuffer<COLOR>(colors.data());
 
 	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &streamGeometry));
-	drawables[0].addMaterial(new ColorSetMat({vec3(0, 1, 0), vec3(1, 0, 0)}));
+	drawables[0].addMaterial(new ColorSetMat(colorSet));
 
 	//Setup KDTree
 	vector<IndexVec3> vertIndexPair;
@@ -634,10 +684,15 @@ void WindowManager::paintingLoop() {
 
 	//Updating
 	int counter = 0;
-	char drawColor = 1;
+	unsigned char drawColor = 1;
+	float lastAngle_TrackpadRadius = 0.f;
+	bool released_TrackpadRadius = true;
+	bool displaySphere = false;
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		displaySphere = false;
 
 		//Get pose
 		vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount,
@@ -668,6 +723,8 @@ void WindowManager::paintingLoop() {
 
 			controllers[i].updatePose(poses[controllers[i].index]);
 			controllers[i].updateState(state);
+			
+			//TEMPORARY?
 			//Switch rotation mode with menu button
 			if (modeSwitchButton[i] && !controllers[i].buttons[VRController::MENU_BUTTON]) {
 				buttonChanged = true;
@@ -686,7 +743,8 @@ void WindowManager::paintingLoop() {
 				buttonChanged = true;
 			}
 		}
-		if (buttonChanged) {
+		//TEMPORARY rotation testing
+/*		if (buttonChanged) {
 			switch (drawMode) {
 			case 0:
 				sceneTransform.rotationMode = VRSceneTransform::ONE_HAND_PLUS_SCALE;
@@ -709,8 +767,48 @@ void WindowManager::paintingLoop() {
 				printf("Mode: Handlebar\nOrigin: Controller\n");
 				break;
 			}
-		}
+		}*/
 		sceneTransform.updateTransform(0.f);	//Not using time yet
+
+		//Change color based on axis
+		if (controllers[0].trackpadTouched) {
+			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
+			drawColor = axisToIndex(axis, 256);
+			dynamic_cast<ColorMat*>(sphere.getMaterial(ColorMat::id))->color = vec4(colorSet[drawColor], sphereTransparency);
+
+			displaySphere = true;
+		}
+		//Change radius based on axis
+		const float SCALE_PER_ROTATION = 2.f;
+		const float MIN_DRAW_RADIUS = 0.01f;
+		const float MAX_DRAW_RADIUS = 0.2f;
+		if (controllers[1].trackpadTouched && length(controllers[1].axes[VRController::TRACKPAD_AXIS]) > 0.3f) {
+			vec2 axis = controllers[1].axes[VRController::TRACKPAD_AXIS];
+			float currentAngle = atan2(axis.y, axis.x);
+			if (released_TrackpadRadius) {
+				lastAngle_TrackpadRadius = currentAngle;
+				released_TrackpadRadius = false;
+			}
+			else {
+				//Find shortest angular distance from last to current position
+				float savedCurrentAngle = currentAngle;
+				float diffA = currentAngle - lastAngle_TrackpadRadius;
+				if (currentAngle < lastAngle_TrackpadRadius) currentAngle += 2.f*PI;
+				else lastAngle_TrackpadRadius += 2.f*PI;
+				float diffB = currentAngle - lastAngle_TrackpadRadius;
+				float diff = (abs(diffA) < abs(diffB)) ? diffA : diffB;
+				
+				drawRadius = clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+				sphere.setScale(vec3(drawRadius));
+
+				lastAngle_TrackpadRadius = savedCurrentAngle;
+			}
+			displaySphere = true;
+		}
+		else {
+			released_TrackpadRadius = true;
+		}
+		
 
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
@@ -727,12 +825,16 @@ void WindowManager::paintingLoop() {
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				sphere.setPosition(vec3(sceneTransform.getTransform()*vec4(pos, 1)));
-				float searchRadius = 0.05f/sceneTransform.scale;
-				kdTree_findNeighbours<dimensions<IndexVec3>()>(
-					vertIndexPair.begin(), vertIndexPair.end(),
-					IndexVec3(-1, pos),
-					searchRadius*searchRadius,
-					neighbours);
+				float searchRadius = drawRadius/sceneTransform.scale;
+				if (controllers[i].axes[VRController::TRIGGER_AXIS].x > 0.9f) {
+					kdTree_findNeighbours<dimensions<IndexVec3>()>(
+						vertIndexPair.begin(), vertIndexPair.end(),
+						IndexVec3(-1, pos),
+						searchRadius*searchRadius,
+						neighbours);
+				}
+
+				displaySphere = true;
 			}
 		}
 		unsigned char *color = streamGeometry.vboPointer<COLOR>();
@@ -767,10 +869,11 @@ void WindowManager::paintingLoop() {
 		//		tsShader.draw(vrCam.leftEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
-		tsShader.draw(vrCam.leftEye, lightPos, sphere);
 		for (int i = 0; i < drawables.size(); i++) {
 			colorShader.draw(vrCam.leftEye, lightPos, drawables[i]);		//Add lightPos and colorMat checking
 		}
+		if(displaySphere)
+			simpleShader.draw(vrCam.leftEye, sphere);
 
 		//Draw right eye
 		fbRightEyeDraw.use();
@@ -778,10 +881,13 @@ void WindowManager::paintingLoop() {
 		//		tsShader.draw(vrCam.rightEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
-		tsShader.draw(vrCam.rightEye, lightPos, sphere);
 		for (int i = 0; i < drawables.size(); i++) {
 			colorShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 		}
+		if(displaySphere)
+			simpleShader.draw(vrCam.rightEye, sphere);
+
+		glDisable(GL_BLEND);
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
 		blit(fbRightEyeDraw, fbRightEyeRead);
@@ -811,6 +917,8 @@ void WindowManager::paintingLoop() {
 			vr::VRCompositor()->Submit(vr::Eye_Right, &rightTexture);
 		}
 
+		glEnable(GL_BLEND);
+
 		checkGLErrors("Buffer overflow?");
 
 		//SEARCH KDTRE
@@ -822,7 +930,7 @@ void WindowManager::paintingLoop() {
 		if (frameTimeSamples > 30) {
 			double currentTime = glfwGetTime();
 			frameTime = currentTime - lastTime;
-			cout << "Time per frame = " << frameTime/double(frameTimeSamples) << endl;
+//			cout << "Time per frame = " << frameTime/double(frameTimeSamples) << endl;
 			frameTimeSamples = 0;
 			lastTime = currentTime;
 		}
