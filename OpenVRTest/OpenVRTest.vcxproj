@@ -161,6 +161,8 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BubbleShader.cpp" />
+    <ClCompile Include="VolumeIO.cpp" />
     <ClCompile Include="VRCamera.cpp" />
     <ClCompile Include="VRController.cpp" />
     <ClCompile Include="VRTools.cpp" />
@@ -168,7 +170,10 @@
     <ClCompile Include="OpenVRTest.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BubbleShader.h" />
     <ClInclude Include="kd_tree.h" />
+    <ClInclude Include="UndoStack.h" />
+    <ClInclude Include="VolumeIO.h" />
     <ClInclude Include="VRController.h" />
     <ClInclude Include="VRTools.h" />
     <ClInclude Include="VRCamera.h" />

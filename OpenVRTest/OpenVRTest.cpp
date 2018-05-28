@@ -3,7 +3,7 @@
 
 #include "VRWindow.h"
 
-int main()
+int main(int argc, char** argv)
 {
 	WindowManager wm(800, 400, "OpenVR Test");
 	wm.paintingLoop();

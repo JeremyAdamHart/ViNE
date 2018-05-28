@@ -65,3 +65,6 @@ OpenVRTest/Debug/vrwindow.obj.enc
 *.idb
 OpenVRTest/Debug/vc140.pdb
 *.ipdb
+
+#Custom file extensions
+*.clr
