@@ -27,8 +27,14 @@ public:
 		}
 	}
 	size_t size() { return mSize; }
-	const T& last() const { return mData[mSize - 1]; }
-	T& last() { return mData[mSize - 1]; }
+	const T& last() const { 
+		size_t index = (mStartIndex + mSize - 1) % mCapacity;
+		return mData[mSize - 1]; 
+	}
+	T& last() { 
+		size_t index = (mStartIndex + mSize - 1) % mCapacity;
+		return mData[mSize - 1]; 
+	}
 };
 
 template<typename T>
@@ -52,7 +58,8 @@ public:
 		for (int i = 0; previousStates.size() > 0 && i < previousStates.last().size(); i++) {
 			data[previousStates.last()[i].first] = previousStates.last()[i].second;
 		}
-		previousStates.push(vector<std::pair<size_t, T>>());
+		if(previousStates.size() == 0 || previousStates.last().size() > 0)
+			previousStates.push(vector<std::pair<size_t, T>>());
 	}
 
 	void undo(std::vector<std::pair<size_t, T>>* changes) {

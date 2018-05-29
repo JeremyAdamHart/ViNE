@@ -642,12 +642,12 @@ void WindowManager::paintingLoop() {
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
 //	MeshInfoLoader minfo ("models/dragon.obj");
-//	vector<unsigned char> colors (minfo.vertices.size(), 60);
-	MeshInfoLoader minfo;;
-	vector<unsigned char> colors;
-	loadVolume("saved/saved1.clr", &minfo, &colors);
+	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
+	vector<unsigned char> colors (minfo.vertices.size(), 60);
+//	MeshInfoLoader minfo;;
+//	vector<unsigned char> colors;
+//	loadVolume("saved/saved1.clr", &minfo, &colors);
 
-//	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
 	StreamGeometry<vec3, vec3, unsigned char> streamGeometry(minfo.vertices.size(),
 	{ false, false, true });
 	streamGeometry.loadElementArray(minfo.indices.size(), GL_STATIC_DRAW, minfo.indices.data());
@@ -659,7 +659,7 @@ void WindowManager::paintingLoop() {
 	drawables[0].addMaterial(new ColorSetMat(colorSet));
 
 	//Undo class
-	const int MAX_UNDO = 10;
+	const int MAX_UNDO = 5;
 	UndoStack<unsigned char> undoStack(colors.data(), colors.size(), MAX_UNDO);
 	undoStack.startNewState();
 
@@ -819,7 +819,7 @@ void WindowManager::paintingLoop() {
 				paintingButtonPressed == false;
 			}
 		}
-		unsigned char *color = streamGeometry.vboPointer<COLOR>();
+//		unsigned char *color = streamGeometry.vboPointer<COLOR>();
 		for (int i = 0; i < neighbours.size(); i++) {
 			streamGeometry.modify<COLOR>(neighbours[i].index, drawColor);
 			undoStack.modify(neighbours[i].index, drawColor);
@@ -939,7 +939,8 @@ void WindowManager::paintingLoop() {
 			saveButtonPressed = false;
 		}
 		static bool undoButtonPressed = false;
-		if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE && undoButtonPressed) {
+		bool pressed = controllers[0].buttons[VRController::MENU_BUTTON];
+		if (pressed == false && undoButtonPressed) {
 			vector<std::pair<size_t, unsigned char>> changes;
 			undoStack.undo(&changes);
 			for (int i = 0; i < changes.size(); i++) {
@@ -948,7 +949,7 @@ void WindowManager::paintingLoop() {
 			streamGeometry.dump<COLOR>();
 			streamGeometry.buffManager.endWrite();
 			undoButtonPressed = false;
-		} else if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+		} else if (pressed) {
 			undoButtonPressed = true;
 		}
 
