@@ -661,8 +661,6 @@ void WindowManager::paintingLoop() {
 	//Undo class
 	const int MAX_UNDO = 5;
 	UndoStack<unsigned char> undoStack(colors.data(), colors.size(), MAX_UNDO);
-	undoStack.startNewState();
-
 
 	//Drawing sphere
 	unsigned char drawColor = 1;
@@ -941,16 +939,31 @@ void WindowManager::paintingLoop() {
 		static bool undoButtonPressed = false;
 		bool pressed = controllers[0].buttons[VRController::MENU_BUTTON];
 		if (pressed == false && undoButtonPressed) {
-			vector<std::pair<size_t, unsigned char>> changes;
+			map<size_t, unsigned char> changes;
 			undoStack.undo(&changes);
-			for (int i = 0; i < changes.size(); i++) {
-				streamGeometry.modify<COLOR>(changes[i].first, changes[i].second);
+			for (auto &it : changes) {
+				streamGeometry.modify<COLOR>(it.first, it.second);
 			}
 			streamGeometry.dump<COLOR>();
 			streamGeometry.buffManager.endWrite();
 			undoButtonPressed = false;
 		} else if (pressed) {
 			undoButtonPressed = true;
+		}
+		static bool redoButtonPressed = false;
+		pressed = controllers[1].buttons[VRController::MENU_BUTTON];
+		if (pressed == false && redoButtonPressed) {
+			map<size_t, unsigned char> changes;
+			undoStack.redo(&changes);
+			for (auto &it : changes) {
+				streamGeometry.modify<COLOR>(it.first, it.second);
+			}
+			streamGeometry.dump<COLOR>();
+			streamGeometry.buffManager.endWrite();
+			redoButtonPressed = false;
+		}
+		else if (pressed) {
+			redoButtonPressed = true;
 		}
 
 		glfwSwapBuffers(window);
