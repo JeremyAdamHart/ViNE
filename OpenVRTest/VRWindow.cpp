@@ -33,6 +33,7 @@ using namespace std;
 #include "kd_tree.h"
 #include "VolumeIO.h"
 #include "UndoStack.h"
+#include "ColorWheel.h"
 
 #include "VRController.h"
 
@@ -502,6 +503,50 @@ int axisToIndex(vec2 axis, int numIndices) {
 	int index =  round_int(u*float(numIndices)) % numIndices;
 	return index;
 }
+/*
+vec3 circlePoint(vec3 origin, vec3 bx, vec3 by, float theta) {
+	return origin + bx*cos(theta) + by*sin(theta);
+}
+
+void generateColorWheel(vec3 origin, vec3 bx, vec3 by, vec3 *colors, int colorNum, int numSubdivisions, StreamGeometry<vec3, vec3, unsigned char>* geometry) {
+	vector<vec3> points;
+	vector<vec3> normals;
+	vector<unsigned char> pointColors;
+	vector<unsigned int> indices;
+
+	vec3 normal = normalize(cross(bx, by));
+	float theta = 0.f;
+	float thetaStep = 2.f*PI / float(colorNum);
+	float thetaSubStep = thetaStep / float(numSubdivisions-1);
+	for (int i = 0; i < colorNum; i++) {
+		float thetaSub = theta - thetaStep*0.5f;
+		points.push_back(origin);
+		normals.push_back(normal);
+		pointColors.push_back(i);
+		int originIndex = points.size() - 1;
+		for (int j = 0; j < numSubdivisions; j++) {
+			points.push_back(circlePoint(origin, bx, by, thetaSub));
+			normals.push_back(normal);
+			pointColors.push_back(i);
+			if (j != 0) {
+				indices.push_back(originIndex);
+				indices.push_back(points.size() - 2);
+				indices.push_back(points.size() - 1);
+			}
+
+			thetaSub += thetaSubStep;
+		}
+		theta += thetaStep;
+	}
+
+	*geometry = StreamGeometry<vec3, vec3, unsigned char>(points.size(), { true, false, false });
+	geometry->loadElementArray(indices.size(), GL_STATIC_DRAW, indices.data());
+	geometry->loadBuffer<0>(points.data());
+	geometry->loadBuffer<1>(normals.data());
+	geometry->loadBuffer<2>(pointColors.data());
+
+//	return geometry;
+}*/
 
 void WindowManager::paintingLoop() {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
@@ -612,6 +657,7 @@ void WindowManager::paintingLoop() {
 	TorranceSparrowShader tsShader;
 	BubbleShader bubbleShader;
 
+
 	TrackballCamera savedCam = cam;
 
 	vec3 lightPos(-100.f, 100.f, 100.f);
@@ -631,9 +677,10 @@ void WindowManager::paintingLoop() {
 	/////////////////////////
 	//Generate color set
 	vector<vec3> colorSet;
-	int COLOR_NUM = 256;
-	for (int i = 0; i < COLOR_NUM; i++) {
-		float angle = float(i)/float(COLOR_NUM)*2.f*PI;
+	int COLOR_NUM = 9;
+	colorSet.push_back(vec3(1, 1, 1));	//Default color
+	for (int i = 0; i < COLOR_NUM-1; i++) {
+		float angle = float(i)/float(COLOR_NUM-1)*2.f*PI;
 		colorSet.push_back(angleToColor(angle));
 	}
 	ColorShader colorShader(colorSet.size());
@@ -641,9 +688,9 @@ void WindowManager::paintingLoop() {
 	enum {
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
-//	MeshInfoLoader minfo ("models/dragon.obj");
-	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
-	vector<unsigned char> colors (minfo.vertices.size(), 60);
+	MeshInfoLoader minfo ("models/dragon.obj");
+//	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
+	vector<unsigned char> colors (minfo.vertices.size(), 0);
 //	MeshInfoLoader minfo;;
 //	vector<unsigned char> colors;
 //	loadVolume("saved/saved1.clr", &minfo, &colors);
@@ -658,6 +705,26 @@ void WindowManager::paintingLoop() {
 	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &streamGeometry));
 	drawables[0].addMaterial(new ColorSetMat(colorSet));
 
+	//Trackpad frame
+	MeshInfoLoader trackpadFrameObj("models/controllerTrackpadFrame.obj");
+	vec3 trackpadCenter(trackpadFrameObj.vertices[0]);
+	vec3 trackpadBx(trackpadFrameObj.vertices[1] - trackpadCenter);
+	vec3 trackpadBy(trackpadFrameObj.vertices[2] - trackpadCenter);
+	vec3 trackpadNormal = normalize(cross(trackpadBx, trackpadBy));
+	const float DIST_FROM_TPAD = 0.01f;
+	const float COLOR_WHEEL_SCALE = 2.f;
+
+	//Trackpad geometry
+	ColorWheel colorWheel(
+		trackpadCenter + trackpadNormal*DIST_FROM_TPAD, 
+		trackpadBx*COLOR_WHEEL_SCALE, 
+		trackpadBy*COLOR_WHEEL_SCALE, 
+		COLOR_NUM, 10);
+	colorWheel.addMaterial(new ShadedMat(0.8f, 0.2f, 0.3f, 10.f));
+	colorWheel.addMaterial(new ColorSetMat(colorSet));
+
+	const float TRACKPAD_LIGHT_DIST = 0.5f;
+
 	//Undo class
 	const int MAX_UNDO = 5;
 	UndoStack<unsigned char> undoStack(colors.data(), colors.size(), MAX_UNDO);
@@ -667,8 +734,12 @@ void WindowManager::paintingLoop() {
 	float sphereTransparency = 1.0f;
 	float drawRadius = 0.05f;
 	ElementGeometry sphereGeom = objToElementGeometry("models/icosphere.obj");
-	Drawable sphere(new ColorMat(colorSet[drawColor]), &sphereGeom);
-	sphere.setScale(vec3(drawRadius));
+	ColorMat sphereColorMat(colorSet[drawColor]);
+	Drawable drawingSphere[2];
+	for (int i = 0; i < 2; i++) {
+		drawingSphere[i] = Drawable(&sphereColorMat, &sphereGeom);
+		drawingSphere[i].setScale(vec3(drawRadius));
+	}
 
 	//Setup KDTree
 	vector<IndexVec3> vertIndexPair;
@@ -685,12 +756,6 @@ void WindowManager::paintingLoop() {
 
 	vector<vec3> controllerPositions(controllers.size());
 
-	quat perFrameRot = angleAxis(3.14159f / 90.f, vec3(0, 1, 0));
-
-	//Velocity
-	vec3 linearVelocity(0.f);
-	quat angularVelocity = quat();
-
 	VRSceneTransform sceneTransform(&controllers);
 	sceneTransform.setPosition(vec3(0.f, 1.f, -1.f));
 
@@ -698,13 +763,15 @@ void WindowManager::paintingLoop() {
 	int counter = 0;
 	float lastAngle_TrackpadRadius = 0.f;
 	bool released_TrackpadRadius = true;
-	bool displaySphere = false;
+	bool displaySphere[2] = { false, false };
+	bool displayColorWheel = false;
 	bool paintingButtonPressed[2] = { false, false };
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		displaySphere = false;
+		displaySphere[0]= false;
+		displaySphere[1] = false;
 
 		//Get pose
 		vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount,
@@ -743,10 +810,14 @@ void WindowManager::paintingLoop() {
 		//Change color based on axis
 		if (controllers[0].trackpadTouched) {
 			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
-			drawColor = axisToIndex(axis, 256);
-			dynamic_cast<ColorMat*>(sphere.getMaterial(ColorMat::id))->color = vec4(colorSet[drawColor], sphereTransparency);
-
-			displaySphere = true;
+			drawColor = axisToIndex(axis, COLOR_NUM);
+			sphereColorMat.color = vec4(colorSet[drawColor], sphereTransparency);
+			colorWheel.selectColor(drawColor);
+			displayColorWheel = true;
+		}
+		else {
+			colorWheel.selectColor(COLOR_NUM);		//Unset value
+			displayColorWheel = false;
 		}
 		//Change radius based on axis
 		const float SCALE_PER_ROTATION = 2.f;
@@ -769,11 +840,12 @@ void WindowManager::paintingLoop() {
 				float diff = (abs(diffA) < abs(diffB)) ? diffA : diffB;
 				
 				drawRadius = clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
-				sphere.setScale(vec3(drawRadius));
+				drawingSphere[0].setScale(vec3(drawRadius));
+				drawingSphere[1].setScale(vec3(drawRadius));
 
 				lastAngle_TrackpadRadius = savedCurrentAngle;
 			}
-			displaySphere = true;
+			displaySphere[1] = true;
 		}
 		else {
 			released_TrackpadRadius = true;
@@ -794,9 +866,8 @@ void WindowManager::paintingLoop() {
 				vec3 pos = controllers[i].getPos();
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
-				sphere.setPosition(vec3(sceneTransform.getTransform()*vec4(pos, 1)));
-				float searchRadius = drawRadius/sceneTransform.scale;
-				if (controllers[i].axes[VRController::TRIGGER_AXIS].x > 0.9f) {
+				float searchRadius = drawRadius / sceneTransform.scale;
+				if (controllers[i].axes[VRController::TRIGGER_AXIS].x > 0.95f) {
 					if (paintingButtonPressed[i] == false) {
 						paintingButtonPressed[i] = true;
 						undoStack.startNewState();
@@ -811,69 +882,78 @@ void WindowManager::paintingLoop() {
 					paintingButtonPressed[i] = false;
 				}
 
-				displaySphere = true;		//TODO get rid of?
+				displaySphere[i] = true;		//TODO get rid of?
 			}
 			else {
 				paintingButtonPressed == false;
 			}
 		}
-//		unsigned char *color = streamGeometry.vboPointer<COLOR>();
 		for (int i = 0; i < neighbours.size(); i++) {
 			streamGeometry.modify<COLOR>(neighbours[i].index, drawColor);
 			undoStack.modify(neighbours[i].index, drawColor);
 		}
 
-/*		//UPDATE GEOMETRY BUFFER
-		int offset = 0;
-		char *color = streamGeometry.vboPointer<COLOR>();
-		const int UPDATE_NUM = 10000;
-		for (int i = 0; i < UPDATE_NUM; i++) {
-			if (counter + i >= streamGeometry.getBufferSize() && offset == 0) {
-				offset = -int(streamGeometry.getBufferSize());
-				drawColor = (drawColor == 0) ? 1 : 0;
-			}
-			int index = (counter + i) + offset;
-			streamGeometry.modify<COLOR>(index, drawColor);
-		}
-
-		counter = counter + UPDATE_NUM + offset;*/
-
 		streamGeometry.dump<COLOR>();
 		streamGeometry.buffManager.endWrite();
 
+		//Update color wheel position
+		colorWheel.position = controllers[0].position;
+		colorWheel.orientation = controllers[0].orientation;
+
+		//Update sphere positions
+		drawingSphere[0].position = controllers[0].position;
+		drawingSphere[1].position = controllers[1].position;
+
+		////////////
+		// DRAWING
+		///////////
 		glEnable(GL_MULTISAMPLE);
 		glClearColor(0.f, 0.f, 0.f, 1.f);
 
 		//Draw left eye
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//		tsShader.draw(vrCam.leftEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
 			colorShader.draw(vrCam.leftEye, lightPos, drawables[i]);		//Add lightPos and colorMat checking
 		}
-		if (displaySphere) {
-			glCullFace(GL_FRONT);
-			bubbleShader.draw(vrCam.leftEye, sphere);
-			glCullFace(GL_BACK);
-			bubbleShader.draw(vrCam.leftEye, sphere);
+		if (displayColorWheel) {
+			colorShader.draw(
+				vrCam.leftEye, 
+				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST), 
+				colorWheel);
+		}
+		for (int i = 0; i < 2; i++) {
+			if (displaySphere[i]) {
+				glCullFace(GL_FRONT);
+				bubbleShader.draw(vrCam.leftEye, drawingSphere[i]);
+				glCullFace(GL_BACK);
+				bubbleShader.draw(vrCam.leftEye, drawingSphere[i]);
+			}
 		}
 
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//		tsShader.draw(vrCam.rightEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
 			colorShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 		}
-		if (displaySphere) {
-			glCullFace(GL_FRONT);
-			bubbleShader.draw(vrCam.rightEye, sphere);
-			glCullFace(GL_BACK);
-			bubbleShader.draw(vrCam.rightEye, sphere);
+		if (displayColorWheel) {
+			colorShader.draw(
+				vrCam.rightEye,
+				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST), 
+				colorWheel);
+		}
+		for (int i = 0; i < 2; i++) {
+			if (displaySphere[i]) {
+				glCullFace(GL_FRONT);
+				bubbleShader.draw(vrCam.rightEye, drawingSphere[i]);
+				glCullFace(GL_BACK);
+				bubbleShader.draw(vrCam.rightEye, drawingSphere[i]);
+			}
 		}
 
 		glDisable(GL_BLEND);
@@ -909,12 +989,6 @@ void WindowManager::paintingLoop() {
 		glEnable(GL_BLEND);
 
 		checkGLErrors("Buffer overflow?");
-
-		//SEARCH KDTRE
-	/*	for (int i = 0; i < neighbours.size(); i++) {
-			streamGeometry.modify<COLOR>(neighbours[i].index, 0);
-		}
-		*/
 
 		if (frameTimeSamples > 30) {
 			double currentTime = glfwGetTime();
