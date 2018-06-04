@@ -43,12 +43,20 @@ public:
 };
 
 template<typename T>
+struct WriteInfo {
+	T oldValue;
+	T newValue;
+	WriteInfo() {}
+	WriteInfo(T oldValue, T newValue) :oldValue(oldValue), newValue(newValue) {}
+};
+
+template<typename T>
 class UndoStack {
 	T *data;
 	size_t size;
 
-	RingStack<std::map<size_t, T>> previousStates;		//Shows changes required to return to previous state
-	std::vector<std::map<size_t, T>> redoStates;
+	RingStack<std::map<size_t, WriteInfo<T>>> previousStates;		//Shows changes required to return to previous state
+	std::vector<std::map<size_t, WriteInfo<T>>> redoStates;
 	bool lastStateUnfinished;
 
 	void propagateLastState() {
@@ -57,9 +65,9 @@ class UndoStack {
 		if (previousStates.last().size() > 0) {
 			for (auto& it : previousStates.last()) {
 				//Propogate new value to data, store old value in previousState
-				T oldValue = data[it.first];
-				data[it.first] = it.second;
-				it.second = oldValue;
+				//T oldValue = data[it.first];
+				data[it.first] = it.second.newValue;
+				//it.second = oldValue;
 			}
 		} 
 		lastStateUnfinished = false;
@@ -71,7 +79,8 @@ public:
 	void modify(size_t element, T value) {
 		try {
 			//Store new value until propagated with propagateLastState()
-			previousStates.last()[element] = value;
+			previousStates.last()[element] = WriteInfo<T>(data[element], value);
+			//data[element] = value;
 		} catch (out_of_range) {
 			printf("UndoStack::modify -- Out of range exception\n");
 		}
@@ -81,7 +90,7 @@ public:
 		redoStates.clear();
 		propagateLastState();
 		if (previousStates.size() == 0 || previousStates.last().size() > 0) {
-			previousStates.push(map<size_t, T>());
+			previousStates.push(map<size_t, WriteInfo<T>>());
 			lastStateUnfinished = true;
 		}
 	}
@@ -95,23 +104,30 @@ public:
 			if(lastStateUnfinished)
 				propagateLastState();
 			//Build redo information and apply undo
-			redoStates.push_back(std::map<size_t, T>());
-			for (const auto &it : previousStates.last()) {
+			redoStates.push_back(previousStates.last());
+/*			for (const auto &it : previousStates.last()) {
 				redoStates.back()[it.first] = data[it.first];
 				data[it.first] = it.second;
+			}*/
+			for (const auto &it: previousStates.last()) {
+				data[it.first] = it.second.oldValue;
+				(*changes)[it.first] = it.second.oldValue;
 			}
-			*changes = previousStates.last();	//Swap?
+//			*changes = previousStates.last();	//Swap?
 			previousStates.pop();
 		}
 	}
 	void redo(std::map<size_t, T>* changes) {
 		if (redoStates.size() > 0) {
+			previousStates.push(redoStates.back());
 			for (const auto &it : redoStates.back()) {
-				data[it.first] = it.second;
+				//previousStates.last()[it.first] = data[it.first];
+				data[it.first] = it.second.newValue;
+				(*changes)[it.first] = it.second.newValue;
 			}
-			previousStates.restore();
+//			previousStates.restore();
 			lastStateUnfinished = false;
-			*changes = redoStates.back();	//Swap?
+//			*changes = redoStates.back();	//Swap?
 			redoStates.pop_back();
 		}
 	}

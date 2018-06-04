@@ -32,6 +32,8 @@ public:
 	ColorWheel(glm::vec3 origin, glm::vec3 bx, glm::vec3 by, 
 		int colorNum, int subdivisionNum);
 
+	void pressColor();
+	void unpressColor();
 	void selectColor(int color);
 	glm::vec3 trackpadLightPosition(float dist);
 };

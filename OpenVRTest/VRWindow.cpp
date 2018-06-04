@@ -677,7 +677,7 @@ void WindowManager::paintingLoop() {
 	/////////////////////////
 	//Generate color set
 	vector<vec3> colorSet;
-	int COLOR_NUM = 9;
+	int COLOR_NUM = 8;
 	colorSet.push_back(vec3(1, 1, 1));	//Default color
 	for (int i = 0; i < COLOR_NUM-1; i++) {
 		float angle = float(i)/float(COLOR_NUM-1)*2.f*PI;
@@ -712,7 +712,7 @@ void WindowManager::paintingLoop() {
 	vec3 trackpadBy(trackpadFrameObj.vertices[2] - trackpadCenter);
 	vec3 trackpadNormal = normalize(cross(trackpadBx, trackpadBy));
 	const float DIST_FROM_TPAD = 0.01f;
-	const float COLOR_WHEEL_SCALE = 2.f;
+	const float COLOR_WHEEL_SCALE = 1.5f;
 
 	//Trackpad geometry
 	ColorWheel colorWheel(

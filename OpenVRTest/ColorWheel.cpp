@@ -9,7 +9,7 @@ using namespace renderlib;
 
 ColorWheel::ColorWheel(glm::vec3 origin, glm::vec3 bx, glm::vec3 by, int colorNum, int subdivisionNum)
 	: origin(origin), bx(bx), by(by), colorNum(colorNum), subdivisionNum(subdivisionNum),
-	selectedColor(colorNum+1), affectedVertices(colorNum)
+	selectedColor(colorNum), affectedVertices(colorNum+1)
 {
 
 	generateColorWheelGeometry();
