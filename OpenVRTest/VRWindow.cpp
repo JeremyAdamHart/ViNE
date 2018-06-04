@@ -43,6 +43,8 @@ const float PI = 3.14159265358979323846;
 
 using namespace renderlib;
 
+int gWindowWidth, gWindowHeight;
+
 bool reloadShaders = false;
 
 TrackballCamera cam(
@@ -66,6 +68,11 @@ void cursorPositionCallback(GLFWwindow *window, double xpos, double ypos) {
 	}
 
 	lastPos = mousePos;
+}
+
+void windowResizeCallback(GLFWwindow *window, int wWidth, int wHeight) {
+	gWindowWidth = wWidth;
+	gWindowHeight = wHeight;
 }
 
 WindowManager::WindowManager() :
@@ -550,6 +557,7 @@ void generateColorWheel(vec3 origin, vec3 bx, vec3 by, vec3 *colors, int colorNu
 
 void WindowManager::paintingLoop() {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
+	glfwSetWindowSizeCallback(window, windowResizeCallback);
 
 	vec3 points[6] = {
 		//First triangle
@@ -582,6 +590,8 @@ void WindowManager::paintingLoop() {
 	}
 
 	Framebuffer fbWindow(window_width, window_height);
+	gWindowWidth = window_width;
+	gWindowHeight = window_height;
 	unsigned int TEX_WIDTH = 800;
 	unsigned int TEX_HEIGHT = 800;
 	vrDisplay->GetRecommendedRenderTargetSize(&TEX_WIDTH, &TEX_HEIGHT);
@@ -683,6 +693,7 @@ void WindowManager::paintingLoop() {
 		float angle = float(i)/float(COLOR_NUM-1)*2.f*PI;
 		colorSet.push_back(angleToColor(angle));
 	}
+
 	ColorShader colorShader(colorSet.size());
 
 	enum {
@@ -769,6 +780,17 @@ void WindowManager::paintingLoop() {
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		if (gWindowWidth != window_width || gWindowHeight != window_height) {
+			window_width = gWindowWidth;
+			window_height = gWindowHeight;
+			fbWindow.resize(window_width, window_height);
+			leftEyeView.width = window_width / 2;
+			leftEyeView.height = window_height;
+			rightEyeView.x = leftEyeView.width;
+			rightEyeView.width = window_width - leftEyeView.width;
+			rightEyeView.height = window_height;
+		}
 
 		displaySphere[0]= false;
 		displaySphere[1] = false;
