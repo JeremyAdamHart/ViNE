@@ -22,7 +22,7 @@ bool saveVolume(std::string saveFileName, std::string objName, unsigned char* co
 	return true;
 }
 
-bool loadVolume(std::string saveFileName, MeshInfoLoader* minfo, std::vector<unsigned char>* colors) {
+bool loadVolume(std::string saveFileName, MeshInfoLoader* minfo, std::vector<unsigned char>* colors, std::string* objName) {
 	std::ifstream f(saveFileName.c_str());
 	if (!f.is_open()) {
 		printf("VolumeIO::loadVolume - File could not be opened\n");
@@ -46,6 +46,8 @@ bool loadVolume(std::string saveFileName, MeshInfoLoader* minfo, std::vector<uns
 		printf("\tVertice size = %d Color size = %d\n", minfo->vertices.size(), colors->size());
 		return false;
 	}
+
+	(*objName) = buffer;
 
 	return true;
 }

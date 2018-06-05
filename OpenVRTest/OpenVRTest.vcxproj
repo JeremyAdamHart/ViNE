@@ -156,6 +156,10 @@
       <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Platform)\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\Win64;$(SolutionDir)..\RenderingEngineLibrary\GLFW\lib\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>openvr_api.lib;glfw.lib;RenderingCore.lib;RenderingExtensions.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />

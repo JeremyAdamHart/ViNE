@@ -39,7 +39,7 @@ public:
 
 	void mainLoop();
 	void mainLoopNoAO();
-	void paintingLoop();
+	void paintingLoop(const char* loadedFile, const char* savedFile);
 };
 
 vr::IVRSystem *initVR();

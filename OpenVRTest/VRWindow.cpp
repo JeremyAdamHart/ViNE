@@ -510,54 +510,134 @@ int axisToIndex(vec2 axis, int numIndices) {
 	int index =  round_int(u*float(numIndices)) % numIndices;
 	return index;
 }
-/*
-vec3 circlePoint(vec3 origin, vec3 bx, vec3 by, float theta) {
-	return origin + bx*cos(theta) + by*sin(theta);
-}
 
-void generateColorWheel(vec3 origin, vec3 bx, vec3 by, vec3 *colors, int colorNum, int numSubdivisions, StreamGeometry<vec3, vec3, unsigned char>* geometry) {
-	vector<vec3> points;
-	vector<vec3> normals;
-	vector<unsigned char> pointColors;
-	vector<unsigned int> indices;
-
-	vec3 normal = normalize(cross(bx, by));
-	float theta = 0.f;
-	float thetaStep = 2.f*PI / float(colorNum);
-	float thetaSubStep = thetaStep / float(numSubdivisions-1);
-	for (int i = 0; i < colorNum; i++) {
-		float thetaSub = theta - thetaStep*0.5f;
-		points.push_back(origin);
-		normals.push_back(normal);
-		pointColors.push_back(i);
-		int originIndex = points.size() - 1;
-		for (int j = 0; j < numSubdivisions; j++) {
-			points.push_back(circlePoint(origin, bx, by, thetaSub));
-			normals.push_back(normal);
-			pointColors.push_back(i);
-			if (j != 0) {
-				indices.push_back(originIndex);
-				indices.push_back(points.size() - 2);
-				indices.push_back(points.size() - 1);
-			}
-
-			thetaSub += thetaSubStep;
+string removeChar(string originalString, char toRemove) {
+	string newString = originalString;
+	for (int i = 0; i < newString.size(); i++) {
+		if (newString[i] == toRemove) {
+			newString.erase(i--, 1);
 		}
-		theta += thetaStep;
 	}
 
-	*geometry = StreamGeometry<vec3, vec3, unsigned char>(points.size(), { true, false, false });
-	geometry->loadElementArray(indices.size(), GL_STATIC_DRAW, indices.data());
-	geometry->loadBuffer<0>(points.data());
-	geometry->loadBuffer<1>(normals.data());
-	geometry->loadBuffer<2>(pointColors.data());
+	return newString;
+}
 
-//	return geometry;
-}*/
+//Extension may or may not include period, it will be ignored
+bool hasExtension(string filename, string matchedExtension) {
+	matchedExtension = removeChar(matchedExtension, '.');
+	size_t periodPos = filename.find_last_of('.');
+	if (periodPos < filename.size()) {
+		string extension = filename.substr(periodPos + 1, 
+			filename.size() - (periodPos + 1));
+		return extension == matchedExtension;
+	}
+	else {
+		return false;
+	}
+}
 
-void WindowManager::paintingLoop() {
+//Extension may or may not include period
+string swapExtension(string filename, string newExtension) {
+	newExtension = removeChar(newExtension, '.');
+	size_t periodPos = filename.find_last_of('.');
+	if (periodPos < filename.size()) {
+		filename.erase(periodPos+1);
+	}
+	else {
+		filename.push_back('.');
+	}
+
+	filename.insert(filename.size(), newExtension);
+	return filename;
+}
+
+string getFilename(string filepath) {
+	size_t lastForwardSlashPos = filepath.find_last_of('/');
+//	size_t lastBackSlashPos = filepath.find_last_of('\\');
+	size_t splitPos = lastForwardSlashPos+1;
+	string filename;
+	if (lastForwardSlashPos < filepath.size())
+		filename = filepath.substr(splitPos, filepath.size() - splitPos);
+	else
+		filename = filepath;
+
+	return filename;
+}
+
+//Changes filename if file exists with that name
+string findFilenameVariation(string filepath) {
+	int counter = 1;
+	size_t splitPos = filepath.find_last_of('.');
+	if (splitPos > filepath.size()) {
+		splitPos = filepath.size() - 1;
+	}
+	FILE *f;
+	errno_t err = fopen_s(&f, filepath.c_str(), "r");
+	while(f != nullptr){
+		if (counter == 1)
+			filepath.insert(splitPos, to_string(counter));
+		else {
+			filepath.erase(splitPos, to_string(counter - 1).size());
+			filepath.insert(splitPos, to_string(counter));
+		}
+		errno_t err = fopen_s(&f, filepath.c_str(), "r");
+		counter++;
+	}
+
+	return filepath;
+}
+
+#include <assert.h>
+
+void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
+
+/*	for (int i = 0; i < 12; i++) {
+		string filenameVariant = findFilenameVariation("filenameTest/file.obj");
+		FILE *f;
+		fopen_s(&f, filenameVariant.c_str(), "w");
+		fclose(f);
+	}
+
+	assert(removeChar(".obj", '.') == string("obj"));
+	assert(hasExtension("filename.obj", ".obj"));
+	assert(hasExtension("filename.obj", "obj"));
+	assert(hasExtension("filename.other.obj", ".obj"));
+	assert(!hasExtension("filename.obj", ".aowei"));
+	assert(!hasExtension("filename.obj", ".obj2"));
+	assert(!hasExtension("filenameobj", ".obj"));
+	//SwapExtension
+	assert(swapExtension("filename.obj", ".new") == "filename.new");
+	assert(swapExtension("filename.other.obj", ".new") == "filename.other.new");
+	assert(swapExtension("filename.other.obj", "new") == "filename.other.new");
+	assert(swapExtension("filename", ".obj") == "filename.obj");
+*/
+	MeshInfoLoader minfo;
+	vector<unsigned char> colors;	// (minfo.vertices.size(), 0);
+	string objName;
+	string savedFilename;
+	if (hasExtension(loadedFile, ".obj")) {
+		minfo.loadModel(loadedFile);
+		colors.resize(minfo.vertices.size(), 0);
+		objName = loadedFile;
+		if (!hasExtension(savedFile, ".clr"))
+			savedFilename = findFilenameVariation(
+				"saved/" + swapExtension(getFilename(loadedFile), "clr"));
+		else
+			savedFilename = savedFile;
+	}
+	else {
+		loadVolume(loadedFile, &minfo, &colors, &objName);
+		savedFilename = savedFile;
+	}
+
+//	MeshInfoLoader minfo("models/dragon.obj");
+	//	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
+//	vector<unsigned char> colors(minfo.vertices.size(), 0);
+	//	MeshInfoLoader minfo;;
+	//	vector<unsigned char> colors;
+	//	loadVolume("saved/saved1.clr", &minfo, &colors);
 
 	vec3 points[6] = {
 		//First triangle
@@ -699,12 +779,6 @@ void WindowManager::paintingLoop() {
 	enum {
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
-	MeshInfoLoader minfo ("models/dragon.obj");
-//	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
-	vector<unsigned char> colors (minfo.vertices.size(), 0);
-//	MeshInfoLoader minfo;;
-//	vector<unsigned char> colors;
-//	loadVolume("saved/saved1.clr", &minfo, &colors);
 
 	StreamGeometry<vec3, vec3, unsigned char> streamGeometry(minfo.vertices.size(),
 	{ false, false, true });
@@ -1025,8 +1099,8 @@ void WindowManager::paintingLoop() {
 
 		static bool saveButtonPressed = false;
 		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !saveButtonPressed) {
-			if (saveVolume("./saved/saved1.clr", "models/dragon.obj", streamGeometry.vboPointer<COLOR>(), colors.size()))
-				printf("Saved volume successfully\n");
+			if (saveVolume(savedFilename.c_str(), objName.c_str(), streamGeometry.vboPointer<COLOR>(), colors.size()))
+				printf("Saved %s successfully\n", savedFilename.c_str());
 			saveButtonPressed = true;
 		}
 		else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
