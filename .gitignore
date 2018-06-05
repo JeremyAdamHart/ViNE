@@ -57,6 +57,7 @@ OpenVRTest/Debug/*.obj
 OpenVRTest/Release/*.obj
 OpenVRTest/x64/Release/
 OpenVRTest/x64/*
+OpenVRTest/Win32
 x64/*
 OpenVRTest/untrackedmodels
 *.pdb
@@ -65,7 +66,11 @@ OpenVRTest/Debug/vrwindow.obj.enc
 *.idb
 OpenVRTest/Debug/vc140.pdb
 *.ipdb
-BUILD_PACKAGE/*
+BUILD_PACKAGE/x64/
+BUILD_PACKAGE/Win32/
+BUILD_PACKAGE/2015/
+BUILD_PACKAGE/studio/
+Win32
 
 #Custom file extensions
 *.clr

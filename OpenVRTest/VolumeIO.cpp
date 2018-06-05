@@ -8,7 +8,7 @@ using namespace renderlib;
 bool saveVolume(std::string saveFileName, std::string objName, unsigned char* colors, int pointNum) {
 	std::ofstream f(saveFileName.c_str());
 	if (!f.is_open()) {
-		printf("VolumeIO::saveVolume - File could not be opened\n");
+		printf("VolumeIO::saveVolume - File %s could not be opened\n", saveFileName.c_str());
 		return false;
 	}
 
@@ -25,7 +25,7 @@ bool saveVolume(std::string saveFileName, std::string objName, unsigned char* co
 bool loadVolume(std::string saveFileName, MeshInfoLoader* minfo, std::vector<unsigned char>* colors, std::string* objName) {
 	std::ifstream f(saveFileName.c_str());
 	if (!f.is_open()) {
-		printf("VolumeIO::loadVolume - File could not be opened\n");
+		printf("VolumeIO::loadVolume - File %s could not be opened\n", saveFileName.c_str());
 		return false;
 	}
 

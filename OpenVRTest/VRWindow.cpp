@@ -551,12 +551,24 @@ string swapExtension(string filename, string newExtension) {
 	return filename;
 }
 
+template<typename T> 
+T maxValLessThan(T a, T b, T lessThan) {
+	if (std::min(a, b) >= lessThan)
+		return lessThan;
+	else if (a >= lessThan)
+		return b;
+	else if (b >= lessThan)
+		return a;
+	else
+		return std::max(a, b);
+}
+
 string getFilename(string filepath) {
 	size_t lastForwardSlashPos = filepath.find_last_of('/');
-//	size_t lastBackSlashPos = filepath.find_last_of('\\');
-	size_t splitPos = lastForwardSlashPos+1;
+	size_t lastBackSlashPos = filepath.find_last_of('\\');
+	size_t splitPos = maxValLessThan(lastForwardSlashPos, lastBackSlashPos, filepath.size())+1;
 	string filename;
-	if (lastForwardSlashPos < filepath.size())
+	if (splitPos < filepath.size())
 		filename = filepath.substr(splitPos, filepath.size() - splitPos);
 	else
 		filename = filepath;
@@ -589,30 +601,10 @@ string findFilenameVariation(string filepath) {
 
 #include <assert.h>
 
-void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile) {
+void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, int sampleNumber) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
 
-/*	for (int i = 0; i < 12; i++) {
-		string filenameVariant = findFilenameVariation("filenameTest/file.obj");
-		FILE *f;
-		fopen_s(&f, filenameVariant.c_str(), "w");
-		fclose(f);
-	}
-
-	assert(removeChar(".obj", '.') == string("obj"));
-	assert(hasExtension("filename.obj", ".obj"));
-	assert(hasExtension("filename.obj", "obj"));
-	assert(hasExtension("filename.other.obj", ".obj"));
-	assert(!hasExtension("filename.obj", ".aowei"));
-	assert(!hasExtension("filename.obj", ".obj2"));
-	assert(!hasExtension("filenameobj", ".obj"));
-	//SwapExtension
-	assert(swapExtension("filename.obj", ".new") == "filename.new");
-	assert(swapExtension("filename.other.obj", ".new") == "filename.other.new");
-	assert(swapExtension("filename.other.obj", "new") == "filename.other.new");
-	assert(swapExtension("filename", ".obj") == "filename.obj");
-*/
 	MeshInfoLoader minfo;
 	vector<unsigned char> colors;	// (minfo.vertices.size(), 0);
 	string objName;
@@ -631,13 +623,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile) 
 		loadVolume(loadedFile, &minfo, &colors, &objName);
 		savedFilename = savedFile;
 	}
-
-//	MeshInfoLoader minfo("models/dragon.obj");
-	//	MeshInfoLoader minfo("untrackedmodels/riccoSurface_take3.obj");
-//	vector<unsigned char> colors(minfo.vertices.size(), 0);
-	//	MeshInfoLoader minfo;;
-	//	vector<unsigned char> colors;
-	//	loadVolume("saved/saved1.clr", &minfo, &colors);
 
 	vec3 points[6] = {
 		//First triangle
@@ -681,7 +666,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile) 
 	Framebuffer fbLeftEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
 
-	const int NUM_SAMPLES = 16;
+	int NUM_SAMPLES = sampleNumber;
 
 	if (!fbLeftEyeDraw.addTexture(
 		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
@@ -1101,6 +1086,11 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile) 
 		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !saveButtonPressed) {
 			if (saveVolume(savedFilename.c_str(), objName.c_str(), streamGeometry.vboPointer<COLOR>(), colors.size()))
 				printf("Saved %s successfully\n", savedFilename.c_str());
+			else {
+				printf("Attempting fallback - Saving to fallback.clr...\n");
+				if (saveVolume("fallback.clr", objName.c_str(), streamGeometry.vboPointer<COLOR>(), colors.size()))
+					printf("Saved fallback.clr successfully\n");
+			}
 			saveButtonPressed = true;
 		}
 		else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
