@@ -30,11 +30,13 @@ void ColorWheel::selectColor(int color) {
 	//Reset old heights
 	for (unsigned int i : affectedVertices[selectedColor]) {
 		points[i] -= normal*RAISED_HEIGHT;
+		points[i] -= (points[i] - origin)/8.f;
 		geom->modify<POSITION>(i, points[i]);
 	}
 
 	//Increase new heights
 	for (unsigned int i : affectedVertices[color]) {
+		points[i] += (points[i] - origin)/7.f;
 		points[i] += normal*RAISED_HEIGHT;
 		geom->modify<POSITION>(i, points[i]);
 	}

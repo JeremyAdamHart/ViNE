@@ -1,6 +1,7 @@
 #include "VRController.h"
 #include <glmSupport.h>
 #include "VRTools.h"
+#include "UndoStack.h"	//Included for ring stack -- Separate?
 
 using namespace renderlib;
 
@@ -166,6 +167,7 @@ quat quaternionDiff(quat a, quat b) {
 //Not currently incorporating time - FIX
 void VRSceneTransform::updateTransform(float deltaTime) {
 
+	static RingStack<vec3> lastVelocities(5);
 	static vec3 rotationCenter = vec3(0.f, 0.f, 0.f);
 	float scaleChange = 1.f;
 	static int lastGripsPressed = 0;
@@ -183,6 +185,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		int index = gripsPressed[0];
 		velocity = controllers->at(index).getPos() - lastPosition[index];
 		angularVelocity = slerp(angularVelocity, quat(), 0.1f);
+		lastVelocities.push(velocity);
 	//	angularVelocity = quat();
 		break;
 	}
@@ -236,13 +239,22 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		
 		scaleChange = lengthB / lengthA;
 		scale *= scaleChange;		//Rescale model
-
+		lastVelocities.push(velocity);
 		break;
 	}
 	default:
 	{
-		velocity *= 0.99f;
-		angularVelocity = slerp(angularVelocity, quat(), 0.1f);
+		if (lastVelocities.size() > 0) {
+			vec3 averageVelocity(0.f);
+			int originalSize = lastVelocities.size();
+			for (int i = 0; i < originalSize; i++) {
+				averageVelocity += lastVelocities.last();
+				lastVelocities.pop();
+			}
+			velocity = averageVelocity / float(originalSize);
+		}
+		velocity *= 0.98f;
+		angularVelocity = quat();	// slerp(angularVelocity, quat(), 0.1f);
 	}
 	}
 

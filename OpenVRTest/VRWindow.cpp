@@ -752,12 +752,22 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	/////////////////////////
 	//Generate color set
 	vector<vec3> colorSet;
-	int COLOR_NUM = 8;
-	colorSet.push_back(vec3(1, 1, 1));	//Default color
+	colorSet = {
+		vec3(1, 1, 1),
+		vec3(1, 0, 0),
+		vec3(1, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 1),
+		vec3(0, 0, 1),
+		vec3(1, 0, 1),
+		vec3(1, 0.5, 0.25f)
+	};
+	int COLOR_NUM = colorSet.size();
+/*	colorSet.push_back(vec3(1, 1, 1));	//Default color
 	for (int i = 0; i < COLOR_NUM-1; i++) {
 		float angle = float(i)/float(COLOR_NUM-1)*2.f*PI;
 		colorSet.push_back(angleToColor(angle));
-	}
+	}*/
 
 	ColorShader colorShader(colorSet.size());
 

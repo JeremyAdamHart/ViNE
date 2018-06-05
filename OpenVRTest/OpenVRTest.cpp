@@ -5,7 +5,7 @@
 
 int main(int argc, char** argv)
 {
-	WindowManager wm(800, 400, "OpenVR Test");
+	WindowManager wm(800, 400, "VR Segmenting");
 	char* loadFilename = "models/dragon.obj";
 	char* saveFilename = "saved/dragon.clr";
 	switch (argc) {
@@ -24,5 +24,5 @@ int main(int argc, char** argv)
 		break;
 	}
 
-	wm.paintingLoop(loadFilename, saveFilename);
+	wm.paintingLoop(loadFilename, saveFilename, 8);
 }

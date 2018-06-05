@@ -40,6 +40,17 @@ public:
 	void restore() {
 		mSize = std::min(mSize + 1, mCapacity);
 	}
+	T& operator[](size_t index) {
+		index = (mStartIndex + mSize - 1) % mCapacity;
+		return mData[index];
+	}
+	const T& operator[](size_t index) const {
+		index = (mStartIndex + mSize - 1) % mCapacity;
+		return mData[index];
+	}
+	void clear() {
+		mSize = 0;
+	}
 };
 
 template<typename T>
