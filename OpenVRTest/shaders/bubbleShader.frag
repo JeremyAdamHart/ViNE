@@ -16,3 +16,4 @@ void main(void)
     // write colour output without modification
     FragmentColour = color*intensity;
 }
+ 

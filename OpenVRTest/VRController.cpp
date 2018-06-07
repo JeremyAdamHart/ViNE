@@ -183,7 +183,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 	case 1:
 	{
 		int index = gripsPressed[0];
-		velocity = controllers->at(index).getPos() - lastPosition[index];
+		velocity = (controllers->at(index).getPos() - lastPosition[index])/deltaTime;
 		angularVelocity = slerp(angularVelocity, quat(), 0.1f);
 		lastVelocities.push(velocity);
 	//	angularVelocity = quat();
@@ -216,7 +216,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 			rotationCenter = 0.5f*(controllers->at(0).getPos() + controllers->at(1).getPos());
 
 			if (lastGripsPressed == 2) {
-				velocity = rotationCenter - lastRotationCenter;
+				velocity = (rotationCenter - lastRotationCenter)/deltaTime;
 			}
 
 			vec3 rotAxis = cross(axisA, axisB);
@@ -265,7 +265,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 			toMat4(normalize(angularVelocity))*vec4(scaleChange*(position - rotationCenter), 1))
 			+ rotationCenter;
 	}
-	position += velocity;
+	position += velocity*deltaTime;
 	orientation = normalize(angularVelocity*orientation);
 
 	//Save positions

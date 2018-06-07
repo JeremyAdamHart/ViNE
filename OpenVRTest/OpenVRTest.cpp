@@ -6,13 +6,13 @@
 int main(int argc, char** argv)
 {
 	WindowManager wm(800, 400, "VR Segmenting");
-	char* loadFilename = "models/dragon.obj";
-	char* saveFilename = "saved/dragon.clr";
+	char* loadFilename = "untrackedmodels/riccoSurface_take3.obj";	//"models/dragon.obj";
+	char* saveFilename = "saved/ricco.clr";
 	switch (argc) {
 	case 1:
 		//Change to ricco
-		loadFilename = "models/dragon.obj";
-		saveFilename = "saved/dragon.clr";
+		loadFilename = "untrackedmodels/riccoSurface_take3.obj";
+		saveFilename = "saved/ricco.clr";
 		break;
 	case 2:
 		loadFilename = argv[1];

@@ -896,7 +896,11 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 		}
 
-		sceneTransform.updateTransform(0.f);	//Not using time yet
+		//Get time
+		static double lastTime = 0.f;
+		double currentTime = glfwGetTime();
+		sceneTransform.updateTransform(currentTime - lastTime);	//Not using time yet
+		lastTime = currentTime;
 
 		//Change color based on axis
 		if (controllers[0].trackpadTouched) {
