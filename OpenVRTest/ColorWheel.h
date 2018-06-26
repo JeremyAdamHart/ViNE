@@ -7,6 +7,7 @@ class ColorWheel : public renderlib::Drawable {
 	std::vector<glm::vec3> points;
 	std::vector<glm::vec3> normals;
 	std::vector<unsigned char> colors;
+	std::vector<glm::vec2> uvCoords;
 	std::vector<unsigned int> indices;
 	glm::vec3 origin;
 	glm::vec3 bx;
@@ -14,6 +15,7 @@ class ColorWheel : public renderlib::Drawable {
 	int colorNum;
 	int subdivisionNum;
 	int selectedColor;
+	std::map<unsigned int, float> depressionList;
 
 	const float RAISED_HEIGHT = 0.01f;
 
@@ -25,12 +27,17 @@ class ColorWheel : public renderlib::Drawable {
 		COLOR
 	};
 
+	void generateSlice(float theta, float angularWidth, int thetaDivisions, 
+		int radiusDivisions, unsigned char color);
 	void generateColorWheelGeometry();
+	void generateColorWheelGeometry2();
 	glm::vec3 modelspaceNormal();
 
 public:
 	ColorWheel(glm::vec3 origin, glm::vec3 bx, glm::vec3 by, 
 		int colorNum, int subdivisionNum);
+
+	void thumbPos(glm::vec2 pos);
 
 	void pressColor();
 	void unpressColor();

@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 	case 1:
 		//Change to ricco
 		loadFilename = "untrackedmodels/riccoSurface_take3.obj";
-		saveFilename = "saved/ricco.clr";
+		saveFilename = "saved/dragon.clr";
 		break;
 	case 2:
 		loadFilename = argv[1];

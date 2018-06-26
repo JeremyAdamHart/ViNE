@@ -4,6 +4,10 @@
 #include "UndoStack.h"	//Included for ring stack -- Separate?
 
 using namespace renderlib;
+using namespace glm;
+
+const char* ViveControllerName = "Vive controller";
+const char* OculusTouchControllerName = "Touch controller";
 
 string getRenderModelErrorString(vr::EVRRenderModelError error) {
 	switch (error) {
@@ -32,6 +36,97 @@ string getRenderModelErrorString(vr::EVRRenderModelError error) {
 	case vr::VRRenderModelError_TooManyVertices:
 		return "TooManyVertices";
 	}
+}
+
+VRAxis::VRAxis() {}
+VRAxis::VRAxis(vr::EVRButtonId button) :button(button) {}
+vec2 VRAxis::value() { return v; }
+void VRAxis::update(const vr::VRControllerState_t &state) {
+	v = vec2(
+		state.rAxis[button - vr::k_EButton_Axis0].x,
+		state.rAxis[button - vr::k_EButton_Axis0].y);
+}
+
+VRButton::VRButton() :mask(0){}
+VRButton::VRButton(vr::EVRButtonId button) :mask(vr::ButtonMaskFromId(button)) {}
+bool VRButton::value() { return v; }
+void VRButton::add(vr::EVRButtonId button) { mask |= vr::ButtonMaskFromId(button); }
+void VRButton::update(const vr::VRControllerState_t &state) {
+	v = mask & state.ulButtonPressed;
+}
+
+VRTouch::VRTouch() :mask(0){}
+VRTouch::VRTouch(vr::EVRButtonId button) :mask(vr::ButtonMaskFromId(button)) {}
+bool VRTouch::value() { return v; }
+void VRTouch::add(vr::EVRButtonId button) { mask |= vr::ButtonMaskFromId(button); }
+void VRTouch::update(const vr::VRControllerState_t &state) {
+	v = mask & state.ulButtonTouched;
+}
+
+void VRControllerInterface::assignAxis(vr::EVRButtonId button, int action) {
+	buttons.erase(action);
+	touched.erase(action);
+	axes[action] = VRAxis(button);
+
+	actionTypes[action] = VRButtonType::AXIS;
+}
+
+void VRControllerInterface::assignButton(vr::EVRButtonId button, int action) {
+	axes.erase(action);
+	touched.erase(action);
+	auto loc = buttons.find(action);
+	if (loc != buttons.end())
+		buttons[action] = VRButton(button);
+	else
+		buttons[action].add(button);
+
+	actionTypes[action] = VRButtonType::BUTTON;
+}
+
+void VRControllerInterface::assignTouch(vr::EVRButtonId button, int action) {
+	axes.erase(action);
+	buttons.erase(action);
+	auto loc = touched.find(action);
+	if (loc != touched.end())
+		touched[action] = VRTouch(button);
+	else
+		touched[action].add(button);
+
+	actionTypes[action] = VRButtonType::TOUCHED;
+}
+
+float VRControllerInterface::getScalar(int action) {
+	if (axes.find(action) != axes.end())
+		return axes[action].value().x;
+	else
+		return 0.f;
+}
+
+glm::vec2 VRControllerInterface::getAxis(int action) {
+	if (axes.find(action) != axes.end())
+		return axes[action].value();
+	else
+		return vec2(0.f);
+}
+
+bool VRControllerInterface::getActivation(int action) {
+	if (actionTypes.find(action) != actionTypes.end()) {
+		if (actionTypes[action] == VRButtonType::BUTTON)
+			return buttons[action].value();
+		else if (actionTypes[action] == VRButtonType::TOUCHED)
+			return touched[action].value();
+	}
+
+	return false;
+}
+
+void VRControllerInterface::updateState(const vr::VRControllerState_t &state) {
+	for (auto &axis : axes)
+		axis.second.update(state);
+	for (auto &button : buttons)
+		button.second.update(state);
+	for (auto touch : touched)
+		touch.second.update(state);
 }
 
 VRController::VRController() :renderModel(nullptr) {
@@ -69,6 +164,7 @@ void VRController::updatePose(const vr::TrackedDevicePose_t &pose) {
 }
 
 void VRController::updateState(const vr::VRControllerState_t &state) {
+
 	//Mild hack to get index of trigger. Better approach would be to use https://github.com/ValveSoftware/openvr/issues/56
 	int triggerIndex = vr::k_EButton_SteamVR_Trigger - vr::k_EButton_Axis0;
 	int trackpadIndex = vr::k_EButton_SteamVR_Touchpad - vr::k_EButton_Axis0;

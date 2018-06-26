@@ -511,94 +511,6 @@ int axisToIndex(vec2 axis, int numIndices) {
 	return index;
 }
 
-string removeChar(string originalString, char toRemove) {
-	string newString = originalString;
-	for (int i = 0; i < newString.size(); i++) {
-		if (newString[i] == toRemove) {
-			newString.erase(i--, 1);
-		}
-	}
-
-	return newString;
-}
-
-//Extension may or may not include period, it will be ignored
-bool hasExtension(string filename, string matchedExtension) {
-	matchedExtension = removeChar(matchedExtension, '.');
-	size_t periodPos = filename.find_last_of('.');
-	if (periodPos < filename.size()) {
-		string extension = filename.substr(periodPos + 1, 
-			filename.size() - (periodPos + 1));
-		return extension == matchedExtension;
-	}
-	else {
-		return false;
-	}
-}
-
-//Extension may or may not include period
-string swapExtension(string filename, string newExtension) {
-	newExtension = removeChar(newExtension, '.');
-	size_t periodPos = filename.find_last_of('.');
-	if (periodPos < filename.size()) {
-		filename.erase(periodPos+1);
-	}
-	else {
-		filename.push_back('.');
-	}
-
-	filename.insert(filename.size(), newExtension);
-	return filename;
-}
-
-template<typename T> 
-T maxValLessThan(T a, T b, T lessThan) {
-	if (std::min(a, b) >= lessThan)
-		return lessThan;
-	else if (a >= lessThan)
-		return b;
-	else if (b >= lessThan)
-		return a;
-	else
-		return std::max(a, b);
-}
-
-string getFilename(string filepath) {
-	size_t lastForwardSlashPos = filepath.find_last_of('/');
-	size_t lastBackSlashPos = filepath.find_last_of('\\');
-	size_t splitPos = maxValLessThan(lastForwardSlashPos, lastBackSlashPos, filepath.size())+1;
-	string filename;
-	if (splitPos < filepath.size())
-		filename = filepath.substr(splitPos, filepath.size() - splitPos);
-	else
-		filename = filepath;
-
-	return filename;
-}
-
-//Changes filename if file exists with that name
-string findFilenameVariation(string filepath) {
-	int counter = 1;
-	size_t splitPos = filepath.find_last_of('.');
-	if (splitPos > filepath.size()) {
-		splitPos = filepath.size() - 1;
-	}
-	FILE *f;
-	errno_t err = fopen_s(&f, filepath.c_str(), "r");
-	while(f != nullptr){
-		if (counter == 1)
-			filepath.insert(splitPos, to_string(counter));
-		else {
-			filepath.erase(splitPos, to_string(counter - 1).size());
-			filepath.insert(splitPos, to_string(counter));
-		}
-		errno_t err = fopen_s(&f, filepath.c_str(), "r");
-		counter++;
-	}
-
-	return filepath;
-}
-
 #include <assert.h>
 
 void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, int sampleNumber) {
@@ -611,6 +523,17 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	string savedFilename;
 	if (hasExtension(loadedFile, ".obj")) {
 		minfo.loadModel(loadedFile);
+		
+		colors.resize(minfo.vertices.size(), 0);
+		objName = loadedFile;
+		if (!hasExtension(savedFile, ".clr"))
+			savedFilename = findFilenameVariation(
+				"saved/" + swapExtension(getFilename(loadedFile), "clr"));
+		else
+			savedFilename = savedFile;
+	}
+	else if (hasExtension(loadedFile, ".ply")) {
+		minfo.loadModelPly(loadedFile);
 		colors.resize(minfo.vertices.size(), 0);
 		objName = loadedFile;
 		if (!hasExtension(savedFile, ".clr"))
@@ -694,7 +617,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		std::cout << "FBO creation failed" << endl;
 	}
 
-	Viewport leftEyeView(window_width / 2, window_height);
+	Viewport leftEyeView(window_width, window_height);
 	Viewport rightEyeView(window_width / 2, window_height, window_width / 2);
 
 	//Parse tracked devices
@@ -762,12 +685,10 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		vec3(1, 0, 1),
 		vec3(1, 0.5, 0.25f)
 	};
+
+	colorSet = colorMapLoader("default.cmp");
+
 	int COLOR_NUM = colorSet.size();
-/*	colorSet.push_back(vec3(1, 1, 1));	//Default color
-	for (int i = 0; i < COLOR_NUM-1; i++) {
-		float angle = float(i)/float(COLOR_NUM-1)*2.f*PI;
-		colorSet.push_back(angleToColor(angle));
-	}*/
 
 	ColorShader colorShader(colorSet.size());
 
@@ -800,7 +721,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		trackpadBx*COLOR_WHEEL_SCALE, 
 		trackpadBy*COLOR_WHEEL_SCALE, 
 		COLOR_NUM, 10);
-	colorWheel.addMaterial(new ShadedMat(0.8f, 0.2f, 0.3f, 10.f));
+	colorWheel.addMaterial(new ShadedMat(0.7f, 0.3f, 0.3f, 10.f));
 	colorWheel.addMaterial(new ColorSetMat(colorSet));
 
 	const float TRACKPAD_LIGHT_DIST = 0.5f;
@@ -841,7 +762,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	//Updating
 	int counter = 0;
-	float lastAngle_TrackpadRadius = 0.f;
+	float lastAngle_TrackpadRadius = 0.f; 
 	bool released_TrackpadRadius = true;
 	bool displaySphere[2] = { false, false };
 	bool displayColorWheel = false;
@@ -854,7 +775,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			window_width = gWindowWidth;
 			window_height = gWindowHeight;
 			fbWindow.resize(window_width, window_height);
-			leftEyeView.width = window_width / 2;
+			leftEyeView.width = window_width;
 			leftEyeView.height = window_height;
 			rightEyeView.x = leftEyeView.width;
 			rightEyeView.width = window_width - leftEyeView.width;
@@ -908,11 +829,13 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			drawColor = axisToIndex(axis, COLOR_NUM);
 			sphereColorMat.color = vec4(colorSet[drawColor], sphereTransparency);
 			colorWheel.selectColor(drawColor);
+			colorWheel.thumbPos(axis);
 			displayColorWheel = true;
 		}
 		else {
 			colorWheel.selectColor(COLOR_NUM);		//Unset value
 			displayColorWheel = false;
+			colorWheel.thumbPos(vec2(20.f, 20.f));
 		}
 		//Change radius based on axis
 		const float SCALE_PER_ROTATION = 2.f;
@@ -945,7 +868,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		else {
 			released_TrackpadRadius = true;
 		}
-		
 
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
@@ -991,6 +913,21 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		streamGeometry.dump<COLOR>();
 		streamGeometry.buffManager.endWrite();
 
+/*		static bool triggered = false;
+		static int count = 90;
+		if (controllers[0].buttons[VRController::TRIGGER_BUTTON] && count < 0) {
+				vrDisplay->TriggerHapticPulse(controllers[0].index, 1, 1000);
+
+			count = 0;
+		}
+		if (controllers[1].buttons[VRController::TRIGGER_BUTTON] && count < 0) {
+				vrDisplay->TriggerHapticPulse(controllers[1].index, 1, 1000);
+
+			count = 0;
+		}
+			
+		count--;
+*/
 		//Update color wheel position
 		colorWheel.position = controllers[0].position;
 		colorWheel.orientation = controllers[0].orientation;
@@ -1064,9 +1001,9 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		glClearColor(1.0, 1.0, 1.0, 1.0);
 		texShader.draw(cam, leftSquare);
 
-		rightEyeView.use();
-		glClearColor(1.0, 1.0, 1.0, 1.0);
-		texShader.draw(cam, rightSquare);
+		//rightEyeView.use();
+		//glClearColor(1.0, 1.0, 1.0, 1.0);
+		//texShader.draw(cam, rightSquare);
 
 		//Draw headset
 		if (vrDisplay) {
