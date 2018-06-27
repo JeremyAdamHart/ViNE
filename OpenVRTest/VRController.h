@@ -11,6 +11,7 @@
 #define OculusTouch_EButton_X vr::k_EButton_A
 #define OculusTouch_EButton_Y vr::k_EButton_ApplicationMenu
 #define OculusTouch_EJoystick vr::k_EButton_Axis0
+#define OculusTouch_ETrigger vr::k_EButton_Axis1
 
 enum VRControllerType {
 	OCULUS_TOUCH, VIVE
@@ -59,15 +60,20 @@ class VRControllerInterface {
 
 	std::map<int, VRButtonType> actionTypes;
 public:
-	void assignAxis(vr::EVRButtonId button, int action);			//Only one axis can be paired with a button
-	void assignButton(vr::EVRButtonId button, int action);			//Multiple buttons can be assigned to same action
-	void assignTouch(vr::EVRButtonId button, int action);			//Multiple buttons can be assigned to same action
+	void assignAxis(int action, vr::EVRButtonId button);			//Only one axis can be paired with a button
+	void assignButton(int action, vr::EVRButtonId button);			//Multiple buttons can be assigned to same action
+	void assignTouch(int action, vr::EVRButtonId button);			//Multiple buttons can be assigned to same action
 
 	float getScalar(int action);	//0 or 1 if BUTTON or TOUCHED, 0 to 1 if AXIS
 	glm::vec2 getAxis(int action);	//Always returns {0, 0} if not AXIS
 	bool getActivation(int action);		//True if activated
 
 	void updateState(const vr::VRControllerState_t &state);
+};
+
+enum VRControllerHand : int {
+	LEFT=0,
+	RIGHT
 };
 
 class VRController : public renderlib::Drawable {
@@ -95,12 +101,14 @@ public:
 //	void setControl(int actionID, vr::EVRButtonId button, )
 
 	VRControllerInterface input;
+	VRControllerType type;
+	VRControllerHand hand;
 
 	glm::vec2 axes[AXIS_COUNT];
 	bool buttons[BUTTON_COUNT];
 	bool trackpadTouched;
 
-	VRControllerType getControllerType();
+
 
 	void updatePose(const vr::TrackedDevicePose_t &pose);
 	void updateState(const vr::VRControllerState_t &state);
@@ -121,8 +129,8 @@ public:
 	};
 
 	enum : int {
-		TRANSFORM_ACTION=0,
-		COUNT
+		TRANSFORM_CONTROL=0,
+		ACTION_COUNT
 	};
 
 	float scale;

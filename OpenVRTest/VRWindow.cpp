@@ -513,9 +513,59 @@ int axisToIndex(vec2 axis, int numIndices) {
 
 #include <assert.h>
 
+enum : int {
+	PAINT_CONTROL = VRSceneTransform::ACTION_COUNT,
+	UNDO_CONTROL,
+	REDO_CONTROL,
+	COLOR_SELECT_CONTROL,
+	COLOR_DISPLAY_CONTROL,
+	SPHERE_SIZE_CONTROL,
+	SPHERE_SIZE_TOUCH_CONTROL,
+	SPHERE_DISPLAY_CONTROL,
+};
+
+void setControllerBindingsOculusTouch(VRControllerInterface *input, VRControllerHand hand) {
+	input->assignButton(VRSceneTransform::TRANSFORM_CONTROL, vr::k_EButton_Grip);
+	input->assignAxis(PAINT_CONTROL, vr::k_EButton_SteamVR_Trigger);
+	if (hand == VRControllerHand::LEFT) {
+		input->assignButton(UNDO_CONTROL, OculusTouch_EButton_X);
+		input->assignAxis(COLOR_SELECT_CONTROL, OculusTouch_EJoystick);
+		input->assignTouch(COLOR_DISPLAY_CONTROL, OculusTouch_EJoystick);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, OculusTouch_ETrigger);
+
+	}
+	else {
+		input->assignButton(REDO_CONTROL, OculusTouch_EButton_A);
+		input->assignAxis(SPHERE_SIZE_CONTROL, OculusTouch_EJoystick);
+		input->assignTouch(SPHERE_DISPLAY_CONTROL, OculusTouch_EJoystick);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, OculusTouch_ETrigger);
+		input->assignTouch(SPHERE_SIZE_TOUCH_CONTROL, OculusTouch_EJoystick);
+	}
+}
+
+void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand hand) {
+	input->assignButton(VRSceneTransform::TRANSFORM_CONTROL, vr::k_EButton_Grip);
+	input->assignAxis(PAINT_CONTROL, vr::k_EButton_SteamVR_Trigger);
+	if (hand == VRControllerHand::LEFT) {
+		input->assignButton(UNDO_CONTROL, vr::k_EButton_ApplicationMenu);
+		input->assignAxis(COLOR_SELECT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignTouch(COLOR_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
+
+	} else {
+		input->assignButton(REDO_CONTROL, vr::k_EButton_ApplicationMenu);
+		input->assignAxis(SPHERE_SIZE_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignTouch(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
+		input->assignButton(SPHERE_SIZE_TOUCH_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+	}
+}
+
 void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, int sampleNumber) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
+
+	const int FRAMES_PER_SECOND = 90;
 
 	MeshInfoLoader minfo;
 	vector<unsigned char> colors;	// (minfo.vertices.size(), 0);
@@ -622,7 +672,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	//Parse tracked devices
 	int headsetIndex = 0;
-	vector<VRController> controllers;
+	vector<VRController> controllers(2);
 	vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
 
 	for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
@@ -633,9 +683,21 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			headsetIndex = i;
 			break;
 		case vr::TrackedDeviceClass_Controller:
-			controllers.push_back(VRController(i, vrDisplay, poses[i], &tm));
+			VRController controller(i, vrDisplay, poses[i], &tm);
+			controllers[controller.hand] = controller;
+//			controllers.push_back(VRController(i, vrDisplay, poses[i], &tm));
 			break;
 		}
+	}
+
+	VRControllerType controllerType = controllers[0].type;
+
+	if (controllerType == VRControllerType::VIVE) {
+		setControllerBindingsVive(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+		setControllerBindingsVive(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
+	}else {
+		setControllerBindingsOculusTouch(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+		setControllerBindingsOculusTouch(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
 	}
 
 	VRCameraController vrCam(&poses[headsetIndex], vrDisplay);
@@ -814,7 +876,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 			controllers[i].updatePose(poses[controllers[i].index]);
 			controllers[i].updateState(state);
-
+			controllers[i].input.updateState(state);
 		}
 
 		//Get time
@@ -824,8 +886,9 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		lastTime = currentTime;
 
 		//Change color based on axis
-		if (controllers[0].trackpadTouched) {
-			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
+		if (controllers[VRControllerHand::LEFT].input.getActivation(COLOR_DISPLAY_CONTROL)) {
+			vec2 axis = controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL);
+//			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
 			drawColor = axisToIndex(axis, COLOR_NUM);
 			sphereColorMat.color = vec4(colorSet[drawColor], sphereTransparency);
 			colorWheel.selectColor(drawColor);
@@ -841,27 +904,47 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		const float SCALE_PER_ROTATION = 2.f;
 		const float MIN_DRAW_RADIUS = 0.01f;
 		const float MAX_DRAW_RADIUS = 0.2f;
-		if (controllers[1].trackpadTouched && length(controllers[1].axes[VRController::TRACKPAD_AXIS]) > 0.3f) {
-			vec2 axis = controllers[1].axes[VRController::TRACKPAD_AXIS];
+
+		const float MIN_TILT = (controllerType == VRControllerType::VIVE) ? 0.3f : 0.1f;
+
+//		bool joystickCondition = (controllers[VRControllerHand::RIGHT].type == VRControllerType::VIVE)
+//			? false : controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL) > MIN_TILT;
+
+
+		if ((controllers[VRControllerHand::RIGHT].input.getActivation(SPHERE_SIZE_TOUCH_CONTROL)
+			+ (length(controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL)) > MIN_TILT)
+			+ (controllerType == VRControllerType::OCULUS_TOUCH)) >= 2){
+			//vec2 axis = controllers[1].axes[VRController::TRACKPAD_AXIS];
+			vec2 axis = controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL);
 			float currentAngle = atan2(axis.y, axis.x);
-			if (released_TrackpadRadius) {
-				lastAngle_TrackpadRadius = currentAngle;
-				released_TrackpadRadius = false;
+
+			if (controllers[VRControllerHand::RIGHT].type == VRControllerType::VIVE) {
+				if (released_TrackpadRadius) {
+					lastAngle_TrackpadRadius = currentAngle;
+					released_TrackpadRadius = false;
+				}
+				else {
+					//Find shortest angular distance from last to current position
+					float savedCurrentAngle = currentAngle;
+					float diffA = currentAngle - lastAngle_TrackpadRadius;
+					if (currentAngle < lastAngle_TrackpadRadius) currentAngle += 2.f*PI;
+					else lastAngle_TrackpadRadius += 2.f*PI;
+					float diffB = currentAngle - lastAngle_TrackpadRadius;
+					float diff = (abs(diffA) < abs(diffB)) ? diffA : diffB;
+				
+					drawRadius = clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+					drawingSphere[0].setScale(vec3(drawRadius));
+					drawingSphere[1].setScale(vec3(drawRadius));
+
+					lastAngle_TrackpadRadius = savedCurrentAngle;
+				}
 			}
 			else {
-				//Find shortest angular distance from last to current position
-				float savedCurrentAngle = currentAngle;
-				float diffA = currentAngle - lastAngle_TrackpadRadius;
-				if (currentAngle < lastAngle_TrackpadRadius) currentAngle += 2.f*PI;
-				else lastAngle_TrackpadRadius += 2.f*PI;
-				float diffB = currentAngle - lastAngle_TrackpadRadius;
-				float diff = (abs(diffA) < abs(diffB)) ? diffA : diffB;
-				
-				drawRadius = clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+				float scaleChange = pow(2.f, axis.y/float(FRAMES_PER_SECOND/2));	//Sphere size doubles in half a second
+
+				drawRadius = clamp(drawRadius*scaleChange, MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
 				drawingSphere[0].setScale(vec3(drawRadius));
 				drawingSphere[1].setScale(vec3(drawRadius));
-
-				lastAngle_TrackpadRadius = savedCurrentAngle;
 			}
 			displaySphere[1] = true;
 		}
@@ -879,12 +962,14 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//SEARCH KDTREE
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < controllers.size(); i++) {
-			if (controllers[i].buttons[VRController::TRIGGER_BUTTON]) {
+			//if (controllers[i].buttons[VRController::TRIGGER_BUTTON]) {
+			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)){
 				vec3 pos = controllers[i].getPos();
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				float searchRadius = drawRadius / sceneTransform.scale;
-				if (controllers[i].axes[VRController::TRIGGER_AXIS].x > 0.95f) {
+//				if (controllers[i].axes[VRController::TRIGGER_AXIS].x > 0.95f) {
+				if(controllers[i].input.getScalar(PAINT_CONTROL) > 0.95f){
 					if (paintingButtonPressed[i] == false) {
 						paintingButtonPressed[i] = true;
 						undoStack.startNewState();
@@ -1048,7 +1133,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			saveButtonPressed = false;
 		}
 		static bool undoButtonPressed = false;
-		bool pressed = controllers[0].buttons[VRController::MENU_BUTTON];
+//		bool pressed = controllers[0].buttons[VRController::MENU_BUTTON];
+		bool pressed = controllers[0].input.getActivation(UNDO_CONTROL);
 		if (pressed == false && undoButtonPressed) {
 			map<size_t, unsigned char> changes;
 			undoStack.undo(&changes);
@@ -1062,7 +1148,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			undoButtonPressed = true;
 		}
 		static bool redoButtonPressed = false;
-		pressed = controllers[1].buttons[VRController::MENU_BUTTON];
+//		pressed = controllers[1].buttons[VRController::MENU_BUTTON];
+		pressed = controllers[1].input.getActivation(REDO_CONTROL);
 		if (pressed == false && redoButtonPressed) {
 			map<size_t, unsigned char> changes;
 			undoStack.redo(&changes);

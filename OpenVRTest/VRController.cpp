@@ -6,7 +6,7 @@
 using namespace renderlib;
 using namespace glm;
 
-const char* ViveControllerName = "Vive controller";
+const char* ViveControllerName = "vr_controller_vive_1_5";
 const char* OculusTouchControllerName = "Touch controller";
 
 string getRenderModelErrorString(vr::EVRRenderModelError error) {
@@ -60,20 +60,21 @@ VRTouch::VRTouch(vr::EVRButtonId button) :mask(vr::ButtonMaskFromId(button)) {}
 bool VRTouch::value() { return v; }
 void VRTouch::add(vr::EVRButtonId button) { mask |= vr::ButtonMaskFromId(button); }
 void VRTouch::update(const vr::VRControllerState_t &state) {
-	v = mask & state.ulButtonTouched;
+	uint64_t bitMask = mask & state.ulButtonTouched;
+	v = (mask & state.ulButtonTouched) != 0;
 }
 
-void VRControllerInterface::assignAxis(vr::EVRButtonId button, int action) {
-	buttons.erase(action);
-	touched.erase(action);
+void VRControllerInterface::assignAxis(int action, vr::EVRButtonId button) {
+//	buttons.erase(action);
+//	touched.erase(action);
 	axes[action] = VRAxis(button);
 
 	actionTypes[action] = VRButtonType::AXIS;
 }
 
-void VRControllerInterface::assignButton(vr::EVRButtonId button, int action) {
-	axes.erase(action);
-	touched.erase(action);
+void VRControllerInterface::assignButton(int action, vr::EVRButtonId button) {
+//	axes.erase(action);
+//	touched.erase(action);
 	auto loc = buttons.find(action);
 	if (loc != buttons.end())
 		buttons[action] = VRButton(button);
@@ -83,9 +84,9 @@ void VRControllerInterface::assignButton(vr::EVRButtonId button, int action) {
 	actionTypes[action] = VRButtonType::BUTTON;
 }
 
-void VRControllerInterface::assignTouch(vr::EVRButtonId button, int action) {
-	axes.erase(action);
-	buttons.erase(action);
+void VRControllerInterface::assignTouch(int action, vr::EVRButtonId button) {
+//	axes.erase(action);
+//	buttons.erase(action);
 	auto loc = touched.find(action);
 	if (loc != touched.end())
 		touched[action] = VRTouch(button);
@@ -96,28 +97,18 @@ void VRControllerInterface::assignTouch(vr::EVRButtonId button, int action) {
 }
 
 float VRControllerInterface::getScalar(int action) {
-	if (axes.find(action) != axes.end())
-		return axes[action].value().x;
-	else
-		return 0.f;
+	return axes.at(action).value().x;
 }
 
 glm::vec2 VRControllerInterface::getAxis(int action) {
-	if (axes.find(action) != axes.end())
-		return axes[action].value();
-	else
-		return vec2(0.f);
+	return axes.at(action).value();
 }
 
 bool VRControllerInterface::getActivation(int action) {
-	if (actionTypes.find(action) != actionTypes.end()) {
-		if (actionTypes[action] == VRButtonType::BUTTON)
-			return buttons[action].value();
-		else if (actionTypes[action] == VRButtonType::TOUCHED)
-			return touched[action].value();
-	}
+	bool buttonValue = (buttons.find(action) != buttons.end()) ? buttons[action].value() : false;
+	bool touchValue = (touched.find(action) != touched.end()) ? touched[action].value() : false;
 
-	return false;
+	return buttonValue || touchValue;
 }
 
 void VRControllerInterface::updateState(const vr::VRControllerState_t &state) {
@@ -125,7 +116,7 @@ void VRControllerInterface::updateState(const vr::VRControllerState_t &state) {
 		axis.second.update(state);
 	for (auto &button : buttons)
 		button.second.update(state);
-	for (auto touch : touched)
+	for (auto &touch : touched)
 		touch.second.update(state);
 }
 
@@ -145,6 +136,17 @@ VRController::VRController(vr::TrackedDeviceIndex_t index, vr::IVRSystem *vrSyst
 
 	vr::EVRRenderModelError error = vr::VRRenderModels()->LoadRenderModel_Async(
 		nameBuffer, &renderModel);
+
+	int32_t whichHand = vrSystem->GetInt32TrackedDeviceProperty(index, vr::ETrackedDeviceProperty::Prop_ControllerRoleHint_Int32);
+	hand = (whichHand == vr::ETrackedControllerRole::TrackedControllerRole_LeftHand) ? 
+		VRControllerHand::LEFT : VRControllerHand::RIGHT;
+
+	if (strcmp(nameBuffer, ViveControllerName) == 0)
+		type = VRControllerType::VIVE;
+	else
+		type = VRControllerType::OCULUS_TOUCH;
+
+	printf("Detected controller: %s\n", nameBuffer);
 
 	while (error == vr::VRRenderModelError_Loading)
 		error = vr::VRRenderModels()->LoadRenderModel_Async(
@@ -271,7 +273,8 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 	//Get indices of controllers which have the grip pressed
 	std::vector<int> gripsPressed;
 	for (int i = 0; i < controllers->size(); i++) {
-		if (controllers->at(i).buttons[VRController::GRIP_BUTTON])
+		if(controllers->at(i).input.getActivation(TRANSFORM_CONTROL))
+//		if (controllers->at(i).buttons[VRController::GRIP_BUTTON])
 			gripsPressed.push_back(i);
 	}
 
