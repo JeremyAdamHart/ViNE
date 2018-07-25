@@ -68,8 +68,6 @@ OpenVRTest/Debug/vc140.pdb
 *.ipdb
 BUILD_PACKAGE/x64/
 BUILD_PACKAGE/Win32/
-BUILD_PACKAGE/2015/
-BUILD_PACKAGE/studio/
 Win32
 
 #Custom file extensions

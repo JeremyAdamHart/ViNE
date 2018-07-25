@@ -7,7 +7,8 @@ using namespace renderlib;
 using namespace glm;
 
 const char* ViveControllerName = "vr_controller_vive_1_5";
-const char* OculusTouchControllerName = "Touch controller";
+const char* OculusTouchControllerName = "oculus_cv1_controller";	//Left and right controllers named differently
+const char* WindowsControllerName = "Microsoft/Windows/OpenVR\\controller_1627_1118";
 
 string getRenderModelErrorString(vr::EVRRenderModelError error) {
 	switch (error) {
@@ -120,7 +121,7 @@ void VRControllerInterface::updateState(const vr::VRControllerState_t &state) {
 		touch.second.update(state);
 }
 
-VRController::VRController() :renderModel(nullptr) {
+VRController::VRController() :renderModel(nullptr), index(-1) {
 
 }
 
@@ -143,6 +144,8 @@ VRController::VRController(vr::TrackedDeviceIndex_t index, vr::IVRSystem *vrSyst
 
 	if (strcmp(nameBuffer, ViveControllerName) == 0)
 		type = VRControllerType::VIVE;
+	else if (string(nameBuffer).find(WindowsControllerName) != string::npos)
+		type = VRControllerType::WINDOWS;
 	else
 		type = VRControllerType::OCULUS_TOUCH;
 
@@ -263,16 +266,21 @@ quat quaternionDiff(quat a, quat b) {
 }
 
 //Not currently incorporating time - FIX
-void VRSceneTransform::updateTransform(float deltaTime) {
+void VRSceneTransform::updateTransform(float deltaTime, vec3 grabPositionModelspace) {
 
 	static RingStack<vec3> lastVelocities(5);
 	static vec3 rotationCenter = vec3(0.f, 0.f, 0.f);
 	float scaleChange = 1.f;
 	static int lastGripsPressed = 0;
 
+	vector<vec3> grabPositions;
+
 	//Get indices of controllers which have the grip pressed
 	std::vector<int> gripsPressed;
 	for (int i = 0; i < controllers->size(); i++) {
+		vec3 grabPosition = vec3(controllers->at(i).getTransform()*vec4(grabPositionModelspace, 1.f));
+		grabPositions.push_back(grabPosition);
+
 		if(controllers->at(i).input.getActivation(TRANSFORM_CONTROL))
 //		if (controllers->at(i).buttons[VRController::GRIP_BUTTON])
 			gripsPressed.push_back(i);
@@ -282,7 +290,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 	case 1:
 	{
 		int index = gripsPressed[0];
-		velocity = (controllers->at(index).getPos() - lastPosition[index])/deltaTime;
+		velocity = (grabPositions[index] - lastPosition[index])/deltaTime;
 		angularVelocity = slerp(angularVelocity, quat(), 0.1f);
 		lastVelocities.push(velocity);
 	//	angularVelocity = quat();
@@ -297,8 +305,8 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		angularVelocity = quat();
 
 		vec3 axisA = lastPosition[indexA] - lastPosition[indexB];
-		vec3 axisB = controllers->at(indexA).getPos()
-			- controllers->at(indexB).getPos();
+		vec3 axisB = grabPositions[indexA] //controllers->at(indexA).getPos()
+			- grabPositions[indexB];	//controllers->at(indexB).getPos();
 		float lengthA = length(axisA);
 		float lengthB = length(axisB);
 
@@ -312,7 +320,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 			axisB = axisB / lengthB;
 
 			vec3 lastRotationCenter = rotationCenter;
-			rotationCenter = 0.5f*(controllers->at(0).getPos() + controllers->at(1).getPos());
+			rotationCenter = 0.5f*(grabPositions[0] + grabPositions[1]);	//0.5f*(controllers->at(0).getPos() + controllers->at(1).getPos());
 
 			if (lastGripsPressed == 2) {
 				velocity = (rotationCenter - lastRotationCenter)/deltaTime;
@@ -332,7 +340,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 		else if(rotationMode == ONE_HAND_PLUS_SCALE){
 			quat orntnDiffB = quaternionDiff(lastOrntnB, currOrntnB);
 			angularVelocity = orntnDiffB;
-			rotationCenter = controllers->at(indexB).getPos();
+			rotationCenter = grabPositions[indexB];		//controllers->at(indexB).getPos();
 
 		}
 		
@@ -353,7 +361,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 			velocity = averageVelocity / float(originalSize);
 		}
 		velocity *= 0.98f;
-		angularVelocity = quat();	// slerp(angularVelocity, quat(), 0.1f);
+		angularVelocity = quat();
 	}
 	}
 
@@ -369,7 +377,7 @@ void VRSceneTransform::updateTransform(float deltaTime) {
 
 	//Save positions
 	for (int i = 0; i < lastPosition.size(); i++) {
-		lastPosition[i] = controllers->at(i).getPos();
+		lastPosition[i] = grabPositions[i];		//controllers->at(i).getPos();
 		lastOrientation[i] = controllers->at(i).getOrientationQuat();
 	}
 

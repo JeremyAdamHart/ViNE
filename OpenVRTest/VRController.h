@@ -13,8 +13,13 @@
 #define OculusTouch_EJoystick vr::k_EButton_Axis0
 #define OculusTouch_ETrigger vr::k_EButton_Axis1
 
+#define Windows_EButton_Touchpad vr::k_EButton_SteamVR_Touchpad
+#define Windows_ETrigger vr::k_EButton_SteamVR_Trigger
+#define Windows_EJoystick vr::k_EButton_Axis2		//Guess
+#define Windows_EButton_ApplicationMenu vr::k_EButton_ApplicationMenu
+
 enum VRControllerType {
-	OCULUS_TOUCH, VIVE
+	OCULUS_TOUCH, VIVE, WINDOWS, UNKNOWN
 };
 
 enum VRButtonType {
@@ -143,7 +148,7 @@ public:
 	void setPosition(glm::vec3 position);
 
 	glm::mat4 getTransform() const override;
-	void updateTransform(float deltaTime);
+	void updateTransform(float deltaTime, glm::vec3 grabPositionModelspace);
 	bool multMatrixPreviewTransform(float modelScale);
 	void multMatrixOldOpenGL();
 	void linkControllers(std::vector<VRController> *newControllers);

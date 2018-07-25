@@ -170,6 +170,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BubbleShader.cpp" />
+    <ClCompile Include="VRColorShader.cpp" />
     <ClCompile Include="ColorWheel.cpp" />
     <ClCompile Include="VolumeIO.cpp" />
     <ClCompile Include="VRCamera.cpp" />
@@ -180,6 +181,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BubbleShader.h" />
+    <ClInclude Include="VRColorShader.h" />
     <ClInclude Include="ColorWheel.h" />
     <ClInclude Include="kd_tree.h" />
     <ClInclude Include="UndoStack.h" />

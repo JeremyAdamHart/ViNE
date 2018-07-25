@@ -34,6 +34,7 @@ using namespace std;
 #include "VolumeIO.h"
 #include "UndoStack.h"
 #include "ColorWheel.h"
+#include "VRColorShader.h"
 
 #include "VRController.h"
 
@@ -557,8 +558,76 @@ void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand ha
 		input->assignAxis(SPHERE_SIZE_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignTouch(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
-		input->assignButton(SPHERE_SIZE_TOUCH_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignTouch(SPHERE_SIZE_TOUCH_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 	}
+}
+
+void setControllerBindingsWindows(VRControllerInterface *input, VRControllerHand hand) {
+	input->assignButton(VRSceneTransform::TRANSFORM_CONTROL, vr::k_EButton_Grip);
+	input->assignAxis(PAINT_CONTROL, Windows_ETrigger);
+	if (hand == VRControllerHand::LEFT) {
+		input->assignButton(UNDO_CONTROL, Windows_EButton_ApplicationMenu);
+		input->assignAxis(COLOR_SELECT_CONTROL, Windows_EButton_Touchpad);
+		input->assignTouch(COLOR_DISPLAY_CONTROL, Windows_EButton_Touchpad);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, Windows_ETrigger);
+
+	}
+	else {
+		input->assignButton(REDO_CONTROL, Windows_EButton_ApplicationMenu);
+		input->assignAxis(SPHERE_SIZE_CONTROL, Windows_EButton_Touchpad);
+		input->assignTouch(SPHERE_DISPLAY_CONTROL, Windows_EButton_Touchpad);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, Windows_ETrigger);
+		input->assignTouch(SPHERE_SIZE_TOUCH_CONTROL, Windows_EButton_Touchpad);
+	}
+}
+
+struct ControllerReferenceFilepaths {
+	char* trackpadFrame;
+	char* drawPosition;
+	char* grabPosition;
+
+	ControllerReferenceFilepaths(VRControllerType type):trackpadFrame(nullptr), drawPosition(nullptr), grabPosition(nullptr) {
+		switch (type) {
+		case VRControllerType::VIVE:
+		case VRControllerType::UNKNOWN:
+			trackpadFrame = "models/controllerTrackpadFrame.obj";
+			drawPosition = "models/ViveDrawPosition.obj";
+			grabPosition = "models/ViveGrabPosition.obj";
+			break;
+		case VRControllerType::WINDOWS:
+			trackpadFrame = "models/WMRTrackpadFrame.obj";
+			drawPosition = "models/WMRDrawPosition.obj";
+			grabPosition = "models/WMRGrabPosition.obj";
+			break;
+		case VRControllerType::OCULUS_TOUCH:
+			trackpadFrame = "models/OculusTouchTrackpadFrameLeft.obj";
+			drawPosition = "models/OculusTouchDrawPosition.obj";
+			grabPosition = "models/OculusTouchGrabPosition.obj";
+			break;
+		}
+	}
+};
+
+struct Sphere {
+	vec3 pos;
+	float radius;
+};
+
+Sphere getBoundingSphere(const vector<vec3> &vertices) {
+	vec3 averagePos = vec3(0.f);
+
+	for (int i = 0; i < vertices.size(); i++) {
+		averagePos += vertices[i];
+	}
+	averagePos /= float(vertices.size());
+
+	float maxDist = 0.f;
+
+	for (int i = 0; i < vertices.size(); i++) {
+		maxDist = std::max(length(averagePos - vertices[i]), maxDist);
+	}
+
+	return { averagePos, maxDist };
 }
 
 void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, int sampleNumber) {
@@ -567,6 +636,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	const int FRAMES_PER_SECOND = 90;
 
+	//Load model
 	MeshInfoLoader minfo;
 	vector<unsigned char> colors;	// (minfo.vertices.size(), 0);
 	string objName;
@@ -597,6 +667,10 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		savedFilename = savedFile;
 	}
 
+	Sphere boundingSphere = getBoundingSphere(minfo.vertices);
+
+	printf("Number of vertices: %d\nNumber of faces: %d\n", minfo.vertices.size(), minfo.indices.size() / 3);
+
 	vec3 points[6] = {
 		//First triangle
 		vec3(-0.5f, 0.5f, 0.f)*2.f,
@@ -617,6 +691,15 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		vec2(0.f, 1.f),
 		vec2(1.f, 0.f),
 		vec2(1.f, 1.f)
+	};
+
+	vec3 normals[6] = {
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1)
 	};
 
 	SimpleTexManager tm;
@@ -684,8 +767,12 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			break;
 		case vr::TrackedDeviceClass_Controller:
 			VRController controller(i, vrDisplay, poses[i], &tm);
+			if (controllers[controller.hand].index != -1) {
+				controller.hand = (controller.hand == VRControllerHand::LEFT)
+					? VRControllerHand::RIGHT : VRControllerHand::LEFT;
+			}
+			
 			controllers[controller.hand] = controller;
-//			controllers.push_back(VRController(i, vrDisplay, poses[i], &tm));
 			break;
 		}
 	}
@@ -695,10 +782,21 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	if (controllerType == VRControllerType::VIVE) {
 		setControllerBindingsVive(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
 		setControllerBindingsVive(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
-	}else {
+	}else if(controllerType == VRControllerType::OCULUS_TOUCH){
 		setControllerBindingsOculusTouch(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
 		setControllerBindingsOculusTouch(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
 	}
+	else if (controllerType == VRControllerType::WINDOWS) {
+		setControllerBindingsWindows(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+		setControllerBindingsWindows(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
+	}
+	else {
+		printf("Error: Unknown controller model - Using Vive controls as default\n");
+		setControllerBindingsVive(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+		setControllerBindingsVive(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
+	}
+
+	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllers[0].type == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
 
 	VRCameraController vrCam(&poses[headsetIndex], vrDisplay);
 
@@ -717,6 +815,18 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	TorranceSparrowShader tsShader;
 	BubbleShader bubbleShader;
 
+	tsTexShader.deleteProgram();
+	tsShader.deleteProgram();
+
+	tsTexShader.createNewProgram(
+		{ {GL_VERTEX_SHADER, "shaders/marchingCubeShader.vert"}, {GL_FRAGMENT_SHADER, "shaders/marchingCubeShader.frag"} },
+		{ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" } }
+	);
+
+	tsShader.createNewProgram(
+		{ { GL_VERTEX_SHADER, "shaders/marchingCubeShader.vert" },{ GL_FRAGMENT_SHADER, "shaders/marchingCubeShader.frag" } },
+		{}
+	);
 
 	TrackballCamera savedCam = cam;
 
@@ -752,11 +862,34 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	int COLOR_NUM = colorSet.size();
 
-	ColorShader colorShader(colorSet.size());
+	VRColorShader colorShader(colorSet.size());
+
+	/*colorShader.createNewProgram(
+	{ { GL_VERTEX_SHADER, "shaders/marchingCubeColor.vert" },{ GL_FRAGMENT_SHADER, "shaders/marchingCubeColor.frag" } },
+	{ { GL_VERTEX_SHADER, string("#define MAX_COLOR_NUM " + to_string(colorSet.size()) + "\n") } }
+	);*/
 
 	enum {
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
+
+	//TEST -- Ground plane
+	unsigned int groundIndices[6] = { 0, 2, 1, 4, 3, 5 };
+	unsigned char groundColors[6] = { 0, 0, 0, 0, 0, 0 };
+	StreamGeometry<vec3, vec3, unsigned char> groundGeom(6, { false, false, false });
+	groundGeom.loadElementArray(6, GL_STATIC_DRAW, groundIndices);
+	groundGeom.loadBuffer<POSITION>(points);
+	groundGeom.loadBuffer<NORMAL>(normals);
+	groundGeom.loadBuffer<COLOR>(groundColors);
+	Drawable groundPlane(
+		new ColorSetMat(colorSet),
+		&groundGeom
+	);
+	groundPlane.addMaterial(new ShadedMat(0.3f, 0.4f, 0.4f, 50.f));
+	groundPlane.orientation = glm::angleAxis(PI / 2.f, vec3(1, 0, 0));
+	groundPlane.setScale(vec3(100.f));
+
+	//END TEST -- Ground Plane
 
 	StreamGeometry<vec3, vec3, unsigned char> streamGeometry(minfo.vertices.size(),
 	{ false, false, true });
@@ -769,13 +902,28 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	drawables[0].addMaterial(new ColorSetMat(colorSet));
 
 	//Trackpad frame
-	MeshInfoLoader trackpadFrameObj("models/controllerTrackpadFrame.obj");
+	ControllerReferenceFilepaths controllerPath(controllerType);
+//	const char* filePathTrackpadFrame = (controllerType == VRControllerType::VIVE)
+//		? "models/controllerTrackpadFrame.obj" : "models/OculusTouchTrackpadFrameLeft.obj";
+	MeshInfoLoader trackpadFrameObj(controllerPath.trackpadFrame);
 	vec3 trackpadCenter(trackpadFrameObj.vertices[0]);
 	vec3 trackpadBx(trackpadFrameObj.vertices[1] - trackpadCenter);
 	vec3 trackpadBy(trackpadFrameObj.vertices[2] - trackpadCenter);
 	vec3 trackpadNormal = normalize(cross(trackpadBx, trackpadBy));
-	const float DIST_FROM_TPAD = 0.01f;
+	const float DIST_FROM_TPAD = 0.013f;
 	const float COLOR_WHEEL_SCALE = 1.5f;
+
+	//Draw position
+//	const char* filePathDrawPosition = (controllerType == VRControllerType::VIVE)
+//		? "models/ViveDrawPosition.obj" : "models/OculusTouchDrawPosition.obj";
+	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
+	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
+
+	//Grab position
+//	const char* filePathGrabPosition = (controllerType == VRControllerType::VIVE)
+//		? "models/ViveGrabPosition.obj" : "models/OculusTouchGrabPosition.obj";
+	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
+	vec3 grabPositionModelspace = grabPositionObj.vertices[0];
 
 	//Trackpad geometry
 	ColorWheel colorWheel(
@@ -882,18 +1030,25 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//Get time
 		static double lastTime = 0.f;
 		double currentTime = glfwGetTime();
-		sceneTransform.updateTransform(currentTime - lastTime);	//Not using time yet
+		sceneTransform.updateTransform(currentTime - lastTime, grabPositionModelspace);	//Not using time yet
 		lastTime = currentTime;
 
+		const float MIN_TILT = (controllerHasTrackpad) ? 0.3f : 0.1f;	//Minimum offset from center for trackpads and joysticks
+
 		//Change color based on axis
-		if (controllers[VRControllerHand::LEFT].input.getActivation(COLOR_DISPLAY_CONTROL)) {
+		if (controllers[VRControllerHand::LEFT].input.getActivation(COLOR_DISPLAY_CONTROL) ||
+			(!controllerHasTrackpad && 
+			length(controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL)) > MIN_TILT))
+		{
 			vec2 axis = controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL);
-//			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
-			drawColor = axisToIndex(axis, COLOR_NUM);
-			sphereColorMat.color = vec4(colorSet[drawColor], sphereTransparency);
-			colorWheel.selectColor(drawColor);
-			colorWheel.thumbPos(axis);
 			displayColorWheel = true;
+			colorWheel.thumbPos(axis);
+			if (controllerHasTrackpad || length(axis) > MIN_TILT) {
+				//			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
+				drawColor = axisToIndex(axis, COLOR_NUM);
+				sphereColorMat.color = vec4(colorSet[drawColor], sphereTransparency);
+				colorWheel.selectColor(drawColor);
+			}
 		}
 		else {
 			colorWheel.selectColor(COLOR_NUM);		//Unset value
@@ -905,7 +1060,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		const float MIN_DRAW_RADIUS = 0.01f;
 		const float MAX_DRAW_RADIUS = 0.2f;
 
-		const float MIN_TILT = (controllerType == VRControllerType::VIVE) ? 0.3f : 0.1f;
 
 //		bool joystickCondition = (controllers[VRControllerHand::RIGHT].type == VRControllerType::VIVE)
 //			? false : controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL) > MIN_TILT;
@@ -913,12 +1067,12 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 		if ((controllers[VRControllerHand::RIGHT].input.getActivation(SPHERE_SIZE_TOUCH_CONTROL)
 			+ (length(controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL)) > MIN_TILT)
-			+ (controllerType == VRControllerType::OCULUS_TOUCH)) >= 2){
+			+ (!controllerHasTrackpad)) >= 2){
 			//vec2 axis = controllers[1].axes[VRController::TRACKPAD_AXIS];
 			vec2 axis = controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL);
 			float currentAngle = atan2(axis.y, axis.x);
 
-			if (controllers[VRControllerHand::RIGHT].type == VRControllerType::VIVE) {
+			if (controllerHasTrackpad) {
 				if (released_TrackpadRadius) {
 					lastAngle_TrackpadRadius = currentAngle;
 					released_TrackpadRadius = false;
@@ -962,13 +1116,12 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//SEARCH KDTREE
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < controllers.size(); i++) {
-			//if (controllers[i].buttons[VRController::TRIGGER_BUTTON]) {
 			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)){
-				vec3 pos = controllers[i].getPos();
+				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				float searchRadius = drawRadius / sceneTransform.scale;
-//				if (controllers[i].axes[VRController::TRIGGER_AXIS].x > 0.95f) {
+
 				if(controllers[i].input.getScalar(PAINT_CONTROL) > 0.95f){
 					if (paintingButtonPressed[i] == false) {
 						paintingButtonPressed[i] = true;
@@ -998,28 +1151,20 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		streamGeometry.dump<COLOR>();
 		streamGeometry.buffManager.endWrite();
 
-/*		static bool triggered = false;
-		static int count = 90;
-		if (controllers[0].buttons[VRController::TRIGGER_BUTTON] && count < 0) {
-				vrDisplay->TriggerHapticPulse(controllers[0].index, 1, 1000);
-
-			count = 0;
-		}
-		if (controllers[1].buttons[VRController::TRIGGER_BUTTON] && count < 0) {
-				vrDisplay->TriggerHapticPulse(controllers[1].index, 1, 1000);
-
-			count = 0;
-		}
-			
-		count--;
-*/
 		//Update color wheel position
 		colorWheel.position = controllers[0].position;
 		colorWheel.orientation = controllers[0].orientation;
 
 		//Update sphere positions
-		drawingSphere[0].position = controllers[0].position;
-		drawingSphere[1].position = controllers[1].position;
+		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
+		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
+
+		//Update bounding sphere on model and find fog bounds
+		vec3 bSphereCenter = vec3(sceneTransform.getTransform()*vec4(boundingSphere.pos, 1));
+		float bSphereRadius = sceneTransform.scale*boundingSphere.radius;
+		float fogDistance = std::max(length(0.5f*vrCam.leftEye.getPosition() + 0.5f*vrCam.rightEye.getPosition() 
+		- bSphereCenter) - bSphereRadius, 0.f);
+		float fogScale = bSphereRadius*0.5f;
 
 		////////////
 		// DRAWING
@@ -1030,15 +1175,21 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//Draw left eye
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//		colorShader.draw(vrCam.leftEye, lightPos, groundPlane);
+//		glClear(GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
-			colorShader.draw(vrCam.leftEye, lightPos, drawables[i]);		//Add lightPos and colorMat checking
+			colorShader.draw(vrCam.leftEye, lightPos, 
+				fogScale, fogDistance, 
+				vec3(0.02f, 0.04f, 0.07f), drawables[i]);		//Add lightPos and colorMat checking
 		}
 		if (displayColorWheel) {
 			colorShader.draw(
-				vrCam.leftEye, 
-				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST), 
+				vrCam.leftEye,
+				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST),
+				fogScale, 10.f,
+				vec3(0.02f, 0.04f, 0.07f),
 				colorWheel);
 		}
 		for (int i = 0; i < 2; i++) {
@@ -1053,15 +1204,20 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//		colorShader.draw(vrCam.rightEye, lightPos, groundPlane);
+//		glClear(GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
 			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
-			colorShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+			colorShader.draw(vrCam.rightEye, lightPos, 
+				fogScale, fogDistance, vec3(0.02f, 0.04f, 0.07f), drawables[i]);
 		}
 		if (displayColorWheel) {
 			colorShader.draw(
 				vrCam.rightEye,
 				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST), 
+				fogScale, 10.f,
+				vec3(0.02f, 0.04f, 0.07f),
 				colorWheel);
 		}
 		for (int i = 0; i < 2; i++) {
