@@ -180,6 +180,7 @@
     <ClCompile Include="OpenVRTest.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\headers\ConvexHull.h" />
     <ClInclude Include="BubbleShader.h" />
     <ClInclude Include="VRColorShader.h" />
     <ClInclude Include="ColorWheel.h" />

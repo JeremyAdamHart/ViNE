@@ -3,9 +3,28 @@
 
 #include "VRWindow.h"
 #include <string>
+#include <iostream>
+
+#include "ConvexHull.h"
 
 int main(int argc, char** argv)
 {
+	SlotMap<int> map;
+
+	SlotMap<int>::Index a = map.add(1);
+	SlotMap<int>::Index b = map.add(2);
+	SlotMap<int>::Index c = map.add(3);
+	map.remove(b);
+	SlotMap<int>::Index d = map.add(4);
+	SlotMap<int>::Index e = map.add(5);
+
+	for (auto it = map.begin(); it != map.end(); ++it) {
+		std::cout << (*it) << std::endl;
+	}
+	
+	HalfEdgeMesh<glm::vec3> mesh;
+
+
 	WindowManager wm(800, 400, "VR Segmenting");
 	char* loadFilename = "untrackedmodels/riccoSurface_take3.obj";	//"models/dragon.obj";
 	char* saveFilename = "saved/ricco.clr";

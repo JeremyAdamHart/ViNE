@@ -38,6 +38,11 @@ using namespace std;
 
 #include "VRController.h"
 
+//Screenshot
+#pragma warning(disable:4996)
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb/stb_image_write.h>
+
 #include <glm/gtc/matrix_transform.hpp>
 
 const float PI = 3.14159265358979323846;
@@ -523,6 +528,7 @@ enum : int {
 	SPHERE_SIZE_CONTROL,
 	SPHERE_SIZE_TOUCH_CONTROL,
 	SPHERE_DISPLAY_CONTROL,
+	SCREENSHOT_CONTROL
 };
 
 void setControllerBindingsOculusTouch(VRControllerInterface *input, VRControllerHand hand) {
@@ -552,6 +558,7 @@ void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand ha
 		input->assignAxis(COLOR_SELECT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignTouch(COLOR_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
+		input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 
 	} else {
 		input->assignButton(REDO_CONTROL, vr::k_EButton_ApplicationMenu);
@@ -914,14 +921,10 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	const float COLOR_WHEEL_SCALE = 1.5f;
 
 	//Draw position
-//	const char* filePathDrawPosition = (controllerType == VRControllerType::VIVE)
-//		? "models/ViveDrawPosition.obj" : "models/OculusTouchDrawPosition.obj";
 	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
 	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
 
 	//Grab position
-//	const char* filePathGrabPosition = (controllerType == VRControllerType::VIVE)
-//		? "models/ViveGrabPosition.obj" : "models/OculusTouchGrabPosition.obj";
 	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
 	vec3 grabPositionModelspace = grabPositionObj.vertices[0];
 
@@ -960,9 +963,32 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	using namespace spatial;
 	build_kdTree_inplace<dimensions<IndexVec3>()>(vertIndexPair.begin(), vertIndexPair.end());
 
+/*	//TEST FOR DUPLICATE VERTICES
+	const float TEST_RANGE = 0.0001f;
+	int totalDuplicates = 0;
+	for (int i = 0; i < minfo.vertices.size(); i++) {
+		vector<IndexVec3> neighbours;
+
+		kdTree_findNeighbours<dimensions<IndexVec3>()>(
+			vertIndexPair.begin(), vertIndexPair.end(),
+			IndexVec3(-1, minfo.vertices[i]),
+			TEST_RANGE,
+			neighbours);
+
+		if (neighbours.size() > 1) {
+			printf("Duplicate found %d\n", neighbours.size());
+			totalDuplicates++;
+		}
+
+	}
+
+	printf("Total duplicates = %d\n", totalDuplicates);
+
+	//TEST FOR DUPLICATE VERTICES
+	*/
 	//Time tracking
 	double frameTime = 0.f;
-	int frameTimeSamples = 0;
+ 	int frameTimeSamples = 0;
 	double lastTime = glfwGetTime();
 
 	vector<vec3> controllerPositions(controllers.size());
@@ -1166,6 +1192,24 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		- bSphereCenter) - bSphereRadius, 0.f);
 		float fogScale = bSphereRadius*0.5f;
 
+		//Setup screenshot
+		//Projection matrix for screenshots
+		float aspectRatio = float(fbRightEyeRead.vp.width) / float(fbRightEyeRead.vp.height);
+		static mat4 screenshotProjection = perspective(radians(90.f), 1.f, 0.01f, 10.f);
+		static mat4 savedProjection;
+		static bool screenshotPressed = false;
+		if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed) {
+			screenshotPressed = true;
+			savedProjection = vrCam.rightEye.getProjectionMatrix();
+			vrCam.rightEye.setProjectionMatrix(screenshotProjection);
+		}
+		else if(controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed){
+			vrCam.rightEye.setProjectionMatrix(savedProjection);
+		}
+		else {
+			screenshotPressed = false;
+		}
+
 		////////////
 		// DRAWING
 		///////////
@@ -1257,11 +1301,30 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture);
 			vr::VRCompositor()->Submit(vr::Eye_Right, &rightTexture);
+
 		}
 
 		glEnable(GL_BLEND);
 
 		checkGLErrors("Buffer overflow?");
+
+		//Write screenshot to file
+		if (screenshotPressed && controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL)) {
+			string filename = findFilenameVariation("Screenshot.png");
+			//fbRightEyeRead.use();
+
+			Texture rightTex = fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0);
+
+			size_t imageSize = rightTex.getWidth()*rightTex.getHeight() * 4;
+			unsigned char *data = new unsigned char[imageSize];
+			glGetTextureImage(rightTex.getID(), 0, GL_RGBA, GL_UNSIGNED_BYTE, imageSize, data);
+
+			stbi_write_png(filename.c_str(), rightTex.getWidth(), rightTex.getHeight(), 4, data, 0);
+
+			delete[] data;
+
+			fbWindow.use();
+		}
 
 		if (frameTimeSamples > 30) {
 			double currentTime = glfwGetTime();
