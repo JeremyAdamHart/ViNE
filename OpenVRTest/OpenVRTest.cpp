@@ -7,6 +7,7 @@
 
 #include "ConvexHull.h"
 
+
 int main(int argc, char** argv)
 {
 	SlotMap<int> map;
@@ -23,7 +24,11 @@ int main(int argc, char** argv)
 	}
 	
 	HalfEdgeMesh<glm::vec3> mesh;
+	generateTetrahedron(mesh, glm::vec3(0, 0, 0), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, 1));
 
+	std::vector<glm::vec3> points;
+	std::vector<int> indices;
+	halfEdgeToFaceList(&points, &indices, mesh);
 
 	WindowManager wm(800, 400, "VR Segmenting");
 	char* loadFilename = "untrackedmodels/riccoSurface_take3.obj";	//"models/dragon.obj";
