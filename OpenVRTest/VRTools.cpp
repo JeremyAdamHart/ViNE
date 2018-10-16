@@ -43,7 +43,7 @@ void openvrRenderModelToDrawable(Drawable *drawable,
 		texManager, (unsigned char*)openvrTex->rubTextureMapData);
 
 	drawable->addMaterial(new TextureMat(tex));
-	drawable->addMaterial(new ShadedMat(0.3, 0.4, 0.5, 0.1));
+	drawable->addMaterial(new ShadedMat(0.7, 0.7, 0.5, 0.3));
 	drawable->setGeometryContainer(geom);
 
 	//Cleanup

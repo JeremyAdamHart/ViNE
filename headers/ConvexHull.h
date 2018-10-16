@@ -133,7 +133,7 @@ public:
 		return {i+1, this };
 	}
 };
-
+/*
 
 template<typename P> class Face;
 template<typename P> class Vertex;
@@ -217,7 +217,7 @@ void halfEdgeToFaceList(std::vector<P>* vertices, std::vector<I>* indices, const
 		indices->push_back(indexMap[vertIndex]);
 		vertIndex = mesh.head(mesh.next(mesh.edge(vertIndex)));
 		indices->push_back(indexMap[vertIndex]);
-	}
+	}	
 }
 
 //P is vertex type, I is index type
@@ -420,3 +420,4 @@ typename SlotMap<Vertex<P>>::Index generateTetrahedron(HalfEdgeMesh<P>& mesh, P 
 	return v_a;
 	
 }
+*/

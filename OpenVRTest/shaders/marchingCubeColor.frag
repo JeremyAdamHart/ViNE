@@ -46,7 +46,7 @@ void main(void)
 	color = color*blinnPhongLighting(normalize(WorldNormal), WorldPosition, viewPosition);
 
 //	float fogAmount = 1- exp(-length(viewPosition - WorldPosition)/fogDist); 
-	float fogAmount = 1- pow(2.71828, -max(length(viewPosition - WorldPosition) - fogDist, 0.f)/fogScale); 
+	float fogAmount = 1- pow(2.71828, -max(length(viewPosition - WorldPosition) - fogDist, 0.f)/fogScale);
  	color = fogAmount*fogColor + (1-fogAmount)*color;
 
     // write colour output without modification

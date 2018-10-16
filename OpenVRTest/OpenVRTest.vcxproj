@@ -108,7 +108,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\RenderingExtensions\headers;$(SolutionDir)..\RenderingEngineLibrary\RenderingLibrary\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -148,7 +148,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\RenderingExtensions\headers;$(SolutionDir)..\RenderingEngineLibrary\RenderingLibrary\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -176,6 +176,7 @@
     <ClCompile Include="VRCamera.cpp" />
     <ClCompile Include="VRController.cpp" />
     <ClCompile Include="VRTools.cpp" />
+    <ClCompile Include="VRView.cpp" />
     <ClCompile Include="VRWindow.cpp" />
     <ClCompile Include="OpenVRTest.cpp" />
   </ItemGroup>
@@ -190,6 +191,7 @@
     <ClInclude Include="VRController.h" />
     <ClInclude Include="VRTools.h" />
     <ClInclude Include="VRCamera.h" />
+    <ClInclude Include="VRView.h" />
     <ClInclude Include="VRWindow.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

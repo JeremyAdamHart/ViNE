@@ -20,6 +20,11 @@ vec3 VRCamera::getPosition() const {
 	return vec3(position.x, position.y, position.z);
 }
 
+vec3 VRCamera::getDirection() const {
+	vec4 direction = inverse(camMatrix)*vec4(0, 0, -1, 0);
+	return vec3(direction);
+}
+
 VRCameraController::VRCameraController(vr::TrackedDevicePose_t *headsetPose, 
 	vr::IVRSystem *vrDisplay) :
 headsetPose(headsetPose), leftEyeTransform(1.f), rightEyeTransform(1.f)

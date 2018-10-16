@@ -31,8 +31,8 @@ float torranceSparrowLighting(vec3 normal, vec3 position, vec3 viewPosition)
 	vec3 light = normalize(lightPos - position);
 	vec3 h = normalize(viewer + light);
 
-	return ks*(alpha+2.0)*(0.5/M_PI) * clamp(pow(dot(normal, h), alpha), 0.0, 1.0)
-			+ kd*clamp(dot(normal, light), 0.0, 1.0) + ka;
+	return ks*1.5*(alpha+2.0)*(0.5/M_PI) * clamp(pow(dot(normal, h), alpha), 0.0, 1.0)
+			+ kd*1.5*clamp(dot(normal, light), 0.0, 1.0) + ka;
 }
 
 void main(void)

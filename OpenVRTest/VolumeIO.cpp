@@ -131,9 +131,16 @@ bool loadVolume(std::string saveFileName, MeshInfoLoader* minfo, std::vector<uns
 		colors->push_back(value);
 	}
 
-	if (!minfo->loadModel(buffer)) {
-		return false;
+	if (hasExtension(std::string(buffer), ".obj")) {
+		if (!minfo->loadModel(buffer))
+			return false;
 	}
+	else if (hasExtension(std::string(buffer), ".ply")) {
+		if (!minfo->loadModelPly(buffer))
+			return false;
+	}
+	else
+		return false;
 
 	if (minfo->vertices.size() != colors->size()) {
 		printf("VolumeIO::loadVolume - Vertex and color size not equal\n");
