@@ -10,7 +10,7 @@ using namespace std;
 
 #include "SimpleShader.h"
 #include "simpleTexShader.h"
-#include "TorranceSparrowShader.h"
+#include "BlinnPhongShader.h"
 #include "AOShader.h"
 #include "PosNormalShader.h"
 
@@ -218,37 +218,38 @@ void WindowManager::mainLoopNoAO() {
 	VRCameraController vrCam(&poses[headsetIndex], vrDisplay);
 
 	//Dragon
-	ElementGeometry dragonGeom = objToElementGeometry("models/dragon.obj");
+	auto dragonGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/dragon.obj"));
 	Drawable dragon(
-		new ColorMat(vec3(0.75f, 0.1f, 0.3f)),
-		&dragonGeom);
+		dragonGeom,
+		make_shared<ColorMat>(vec3(0.75f, 0.1f, 0.3f))
+	);
 	dragon.addMaterial(new ShadedMat(0.2f, 0.5f, 0.3f, 10.f));
 
 	dragon.setPosition(vec3(1.f, 0, 0));
 	dragon.setOrientation(angleAxis(-PI*0.5f, vec3(0.f, 1.f, 0.f)));
 
-	ElementGeometry sphereGeom = objToElementGeometry("models/icosphere.obj");
+	auto sphereGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/icosphere.obj"));
 	Drawable sphere(
-		new ColorMat(vec3(0.1, 0.3f, 0.8f)),
-		&sphereGeom);
+		sphereGeom,
+		make_shared<ColorMat>(vec3(0.1, 0.3f, 0.8f))
+	);
 	sphere.addMaterial(new ShadedMat(0.2f, 0.5f, 0.3f, 10.f));
 
 	sphere.setPosition(vec3(1.f, 0, 0));
 
 	//Squares for left and right views
 	Drawable leftSquare(
-		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
 
 	Drawable rightSquare(
-		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
 
 	SimpleTexShader texShader;
 	SimpleShader shader;
-	TorranceSparrowShader tsShader;
-	TorranceSparrowShader tsTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
-	});
+	BlinnPhongShader bpShader;
+	BlinnPhongShader bpTexShader(BPTextureUsage::TEXTURE);
 
 	TrackballCamera savedCam = cam;
 
@@ -256,15 +257,15 @@ void WindowManager::mainLoopNoAO() {
 
 	fbLeftEyeDraw.use();
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	tsShader.draw(cam, lightPos, dragon);
+	bpShader.draw(cam, lightPos, dragon);
 
 	fbWindow.use();
 
 	vector<Drawable> drawables;
 
-	ElementGeometry objGeometry = objToElementGeometry("untrackedmodels/riccoSurface_take3.obj");
+	auto objGeometry = shared_ptr<ElementGeometry>(objToElementGeometry("untrackedmodels/riccoSurface_take3.obj"));
 
-	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &objGeometry));
+	drawables.push_back(Drawable(objGeometry, make_shared<ShadedMat>(0.3, 0.4, 0.4, 10.f)));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 1, 1)));
 
 	for (int i = 0; i < drawables.size(); i++) {
@@ -280,7 +281,7 @@ void WindowManager::mainLoopNoAO() {
 	vec3 linearVelocity(0.f);
 	quat angularVelocity = quat();
 
-	vector<vec3> tempData (objGeometry.numElements(), vec3(0, 1, 0));
+	vector<vec3> tempData (objGeometry->numElements(), vec3(0, 1, 0));
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -380,30 +381,30 @@ void WindowManager::mainLoopNoAO() {
 		//Draw left eye
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//		tsShader.draw(vrCam.leftEye, lightPos, dragon);
+		//		bpShader.draw(vrCam.leftEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
-			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
+			bpTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 
 		for (int i = 0; i < drawables.size(); i++) {
 			if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-				tsTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+				bpTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
 			}
 			else
-				tsShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+				bpShader.draw(vrCam.leftEye, lightPos, drawables[i]);
 		}
 
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//		tsShader.draw(vrCam.rightEye, lightPos, dragon);
+		//		bpShader.draw(vrCam.rightEye, lightPos, dragon);
 		for (int i = 0; i < controllers.size(); i++)
-			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
+			bpTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
 			if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-				tsTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+				bpTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 			}
 			else
-				tsShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+				bpShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 		}
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
@@ -424,10 +425,10 @@ void WindowManager::mainLoopNoAO() {
 		//Draw headset
 		if (vrDisplay) {
 			vr::Texture_t leftTexture = {
-				(void*)(uintptr_t)fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
+				(void*)(uintptr_t)GLuint(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
 				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::Texture_t rightTexture = {
-				(void*)(uintptr_t)fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
+				(void*)(uintptr_t)GLuint(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
 				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture);
@@ -439,21 +440,6 @@ void WindowManager::mainLoopNoAO() {
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
-
-
-	delete leftSquare.getMaterial(TextureMat::id);
-	delete leftSquare.getGeometryPtr();
-
-	delete dragon.getMaterial(ColorMat::id);
-	delete dragon.getMaterial(ShadedMat::id);
-
-	delete sphere.getMaterial(ColorMat::id);
-	delete sphere.getMaterial(ShadedMat::id);
-
-	fbLeftEyeDraw.deleteFramebuffer();
-	fbLeftEyeDraw.deleteTextures();
-	fbRightEyeDraw.deleteFramebuffer();
-	fbRightEyeDraw.deleteTextures();
 
 	glfwTerminate();
 	vr::VR_Shutdown();
@@ -705,6 +691,56 @@ std::pair<float, float> getClosestAndFurthestDistanceToConvexHull(vec3 point, ve
 	return{ sqrt(closestDistance), sqrt(furthestDistance) };
 }
 
+/*
+Shader class
+*/
+constexpr int cMax(int a, int b) {
+	return (a > b) ? a : b;
+}
+
+enum {
+	VP_MATRIX_LOCATION = ShadedMat::COUNT
+	+ cMax(int(TextureMat::COUNT), int(ColorMat::COUNT)),
+	M_MATRIX_LOCATION,
+	CAMERA_POS_LOCATION,
+	LIGHT_POS_LOCATION,
+	COUNT
+};
+
+static vector<pair<GLenum, string>> marchingCubeShaders{
+	{ GL_VERTEX_SHADER, "shaders/marchingCubeShader.vert" },
+	{ GL_FRAGMENT_SHADER, "shaders/marchingCubeShader.frag" }
+};
+
+class MarchingCubeBPShader : public ShaderT<ShadedMat, ColorMat> {
+
+//TEST SHADER vv
+	MarchingCubeBPShader::MarchingCubeBPShader(bool usingTexture) :
+		ShaderT<ShadedMat, ColorMat>(marchingCubeShaders, {},
+		{ "ka", "kd", "ks", "alpha", (usingTexture) ? "colorTexture" : "color",
+			"view_projection_matrix",  "model_matrix", "camera_position", "lightPos" })
+	{}
+
+	void MarchingCubeBPShader::draw(const Camera &cam, vec3 lightPos,
+	Drawable &obj)
+	{
+	glUseProgram(programID);
+
+	mat4 vp_matrix = cam.getProjectionMatrix()*cam.getCameraMatrix();
+	mat4 m_matrix = obj.getTransform();
+	vec3 camera_pos = cam.getPosition();
+
+	loadMaterialUniforms(obj);
+	glUniformMatrix4fv(uniformLocations[VP_MATRIX_LOCATION], 1, false, &vp_matrix[0][0]);
+	glUniformMatrix4fv(uniformLocations[M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
+	glUniform3f(uniformLocations[CAMERA_POS_LOCATION], camera_pos.x, camera_pos.y, camera_pos.z);
+	glUniform3f(uniformLocations[LIGHT_POS_LOCATION],
+		lightPos.x, lightPos.y, lightPos.z);
+	obj.getGeometry().drawGeometry();
+	glUseProgram(0);
+	}
+};
+
 void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, int sampleNumber) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
@@ -898,32 +934,32 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	//Squares for left and right views
 	Drawable leftSquare(
-		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
 
 	Drawable rightSquare(
-		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
 
 	SimpleTexShader texShader;
-	TorranceSparrowShader tsTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
+	BlinnPhongShader bpTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
 	});
-	TorranceSparrowShader tsShader;
+	BlinnPhongShader bpShader;
 	BubbleShader bubbleShader;
 	SimpleShader wireframeShader;
 
-	tsTexShader.deleteProgram();
-	tsShader.deleteProgram();
+	/*bpTexShader.deleteProgram();
+	bpShader.deleteProgram();
 
-	tsTexShader.createNewProgram(
+	bpTexShader.createNewProgram(
 		{ {GL_VERTEX_SHADER, "shaders/marchingCubeShader.vert"}, {GL_FRAGMENT_SHADER, "shaders/marchingCubeShader.frag"} },
 		{ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" } }
 	);
 
-	tsShader.createNewProgram(
+	bpShader.createNewProgram(
 		{ { GL_VERTEX_SHADER, "shaders/marchingCubeShader.vert" },{ GL_FRAGMENT_SHADER, "shaders/marchingCubeShader.frag" } },
 		{}
-	);
+	);*/
 
 	TrackballCamera savedCam = cam;
 
@@ -973,14 +1009,14 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	//TEST -- Ground plane
 	unsigned int groundIndices[6] = { 0, 2, 1, 4, 3, 5 };
 	unsigned char groundColors[6] = { 0, 0, 0, 0, 0, 0 };
-	StreamGeometry<vec3, vec3, unsigned char> groundGeom(6, { false, false, false });
-	groundGeom.loadElementArray(6, GL_STATIC_DRAW, groundIndices);
-	groundGeom.loadBuffer<POSITION>(points);
-	groundGeom.loadBuffer<NORMAL>(normals);
-	groundGeom.loadBuffer<COLOR>(groundColors);
+	auto groundGeom = make_shared<StreamGeometry<vec3, vec3, unsigned char>>(6, vector<char>{ false, false, false });
+	groundGeom->loadElementArray(6, GL_STATIC_DRAW, groundIndices);
+	groundGeom->loadBuffer<POSITION>(points);
+	groundGeom->loadBuffer<NORMAL>(normals);
+	groundGeom->loadBuffer<COLOR>(groundColors);
 	Drawable groundPlane(
-		new ColorSetMat(colorSet),
-		&groundGeom
+		groundGeom,
+		make_shared<ColorSetMat>(colorSet)
 	);
 	groundPlane.addMaterial(new ShadedMat(0.3f, 0.4f, 0.4f, 50.f));
 	groundPlane.orientation = glm::angleAxis(PI / 2.f, vec3(1, 0, 0));
@@ -988,14 +1024,14 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	//END TEST -- Ground Plane
 
-	StreamGeometry<vec3, vec3, unsigned char> streamGeometry(minfo.vertices.size(),
-	{ false, false, true });
-	streamGeometry.loadElementArray(minfo.indices.size(), GL_STATIC_DRAW, minfo.indices.data());
-	streamGeometry.loadBuffer<POSITION>(minfo.vertices.data());
-	streamGeometry.loadBuffer<NORMAL>(minfo.normals.data());
-	streamGeometry.loadBuffer<COLOR>(colors.data());
+	auto streamGeometry = make_shared<StreamGeometry<vec3, vec3, unsigned char>>(minfo.vertices.size(),
+	std::vector<char>({ false, false, true }));
+	streamGeometry->loadElementArray(minfo.indices.size(), GL_STATIC_DRAW, minfo.indices.data());
+	streamGeometry->loadBuffer<POSITION>(minfo.vertices.data());
+	streamGeometry->loadBuffer<NORMAL>(minfo.normals.data());
+	streamGeometry->loadBuffer<COLOR>(colors.data());
 
-	drawables.push_back(Drawable(new ShadedMat( 0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/ ), &streamGeometry));
+	drawables.push_back(Drawable(streamGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
 	drawables[0].addMaterial(new ColorSetMat(colorSet));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
 	
@@ -1039,11 +1075,11 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	unsigned char drawColor = 1;
 	float sphereTransparency = 1.0f;
 	float drawRadius = 0.05f;
-	ElementGeometry sphereGeom = objToElementGeometry("models/icosphere.obj");
-	ColorMat sphereColorMat(colorSet[drawColor]);
+	auto sphereGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/icosphere.obj"));
+	auto sphereColorMat = make_shared<ColorMat>(colorSet[drawColor]);
 	Drawable drawingSphere[2];
 	for (int i = 0; i < 2; i++) {
-		drawingSphere[i] = Drawable(&sphereColorMat, &sphereGeom);
+		drawingSphere[i] = Drawable(sphereGeom, sphereColorMat);
 		drawingSphere[i].setScale(vec3(drawRadius));
 	}
 
@@ -1133,8 +1169,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !updateMapButtonPressed) {
 			updateMapButtonPressed = true;
 			colorSet = colorMapLoader("default.cmp");
-			dynamic_cast<ColorSetMat*>(drawables[0].getMaterial(ColorSetMat::id))->colors = colorSet;
-			dynamic_cast<ColorSetMat*>(colorWheel.getMaterial(ColorSetMat::id))->colors = colorSet;
+			dynamic_pointer_cast<ColorSetMat>(drawables[0].getMaterial(ColorSetMat::id))->colors = colorSet;
+			dynamic_pointer_cast<ColorSetMat>(colorWheel.getMaterial(ColorSetMat::id))->colors = colorSet;
 		}
 		else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE)
 			updateMapButtonPressed = false;
@@ -1180,7 +1216,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			if (controllerHasTrackpad || length(axis) > MIN_TILT) {
 				//			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
 				drawColor = axisToIndex(axis, COLOR_NUM);
-				sphereColorMat.color = vec4(colorSet[drawColor], sphereTransparency);
+				sphereColorMat->color = vec4(colorSet[drawColor], sphereTransparency);
 				colorWheel.selectColor(drawColor);
 			}
 		}
@@ -1278,12 +1314,12 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			}
 		}
 		for (int i = 0; i < neighbours.size(); i++) {
-			streamGeometry.modify<COLOR>(neighbours[i].index, drawColor);
+			streamGeometry->modify<COLOR>(neighbours[i].index, drawColor);
 			undoStack.modify(neighbours[i].index, drawColor);
 		}
 
-		streamGeometry.dump<COLOR>();
-		streamGeometry.buffManager.endWrite();
+		streamGeometry->dump<COLOR>();
+		streamGeometry->buffManager.endWrite();
 
 		//Update color wheel position
 		colorWheel.position = controllers[0].position;
@@ -1386,7 +1422,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 //		colorShader.draw(vrCam.leftEye, lightPos, groundPlane);
 //		glClear(GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
-			tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
+			bpTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
 			colorShader.draw(vrCam.leftEye, lightPos, 
 				fogScale, fogDistance, 
@@ -1426,7 +1462,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 //		colorShader.draw(vrCam.rightEye, lightPos, groundPlane);
 //		glClear(GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
-			tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
+			bpTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
 			colorShader.draw(vrCam.rightEye, lightPos, 
 				fogScale, fogDistance, vec3(0.02f, 0.04f, 0.07f), drawables[i]);
@@ -1481,10 +1517,10 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//Draw headset
 		if (vrDisplay) {
 			vr::Texture_t leftTexture = {
-				(void*)(uintptr_t)fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
+				(void*)(uintptr_t)GLuint(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
 				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::Texture_t rightTexture = {
-				(void*)(uintptr_t)fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
+				(void*)(uintptr_t)GLuint(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
 				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture);
@@ -1527,11 +1563,11 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 		static bool saveButtonPressed = false;
 		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !saveButtonPressed) {
-			if (saveVolume(savedFilename.c_str(), objName.c_str(), streamGeometry.vboPointer<COLOR>(), colors.size()))
+			if (saveVolume(savedFilename.c_str(), objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
 				printf("Saved %s successfully\n", savedFilename.c_str());
 			else {
 				printf("Attempting fallback - Saving to fallback.clr...\n");
-				if (saveVolume("fallback.clr", objName.c_str(), streamGeometry.vboPointer<COLOR>(), colors.size()))
+				if (saveVolume("fallback.clr", objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
 					printf("Saved fallback.clr successfully\n");
 			}
 			saveButtonPressed = true;
@@ -1546,10 +1582,10 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			map<size_t, unsigned char> changes;
 			undoStack.undo(&changes);
 			for (auto &it : changes) {
-				streamGeometry.modify<COLOR>(it.first, it.second);
+				streamGeometry->modify<COLOR>(it.first, it.second);
 			}
-			streamGeometry.dump<COLOR>();
-			streamGeometry.buffManager.endWrite();
+			streamGeometry->dump<COLOR>();
+			streamGeometry->buffManager.endWrite();
 			undoButtonPressed = false;
 		} else if (pressed) {
 			undoButtonPressed = true;
@@ -1561,10 +1597,10 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			map<size_t, unsigned char> changes;
 			undoStack.redo(&changes);
 			for (auto &it : changes) {
-				streamGeometry.modify<COLOR>(it.first, it.second);
+				streamGeometry->modify<COLOR>(it.first, it.second);
 			}
-			streamGeometry.dump<COLOR>();
-			streamGeometry.buffManager.endWrite();
+			streamGeometry->dump<COLOR>();
+			streamGeometry->buffManager.endWrite();
 			redoButtonPressed = false;
 		}
 		else if (pressed) {
@@ -1574,11 +1610,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
-
-	fbLeftEyeDraw.deleteFramebuffer();
-	fbLeftEyeDraw.deleteTextures();
-	fbRightEyeDraw.deleteFramebuffer();
-	fbRightEyeDraw.deleteTextures();
 
 	glfwTerminate();
 	vr::VR_Shutdown();
@@ -1760,19 +1791,19 @@ void WindowManager::mainLoop() {
 	VRCameraController vrCam(&poses[headsetIndex], vrDisplay);
 
 	//Dragon
-	ElementGeometry dragonGeom = objToElementGeometry("models/dragon.obj");
+	auto dragonGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/dragon.obj"));
 	Drawable dragon(
-		new ColorMat(vec3(0.75f, 0.1f, 0.3f)),
-		&dragonGeom);
+		dragonGeom,
+		make_shared<ColorMat>(vec3(0.75f, 0.1f, 0.3f)));
 	dragon.addMaterial(new ShadedMat(0.2f, 0.5f, 0.3f, 10.f));
 
 	dragon.setPosition(vec3(1.f, 0, 0));
 	dragon.setOrientation(angleAxis(-PI*0.5f, vec3(0.f, 1.f, 0.f)));
 
-	ElementGeometry sphereGeom = objToElementGeometry("models/icosphere.obj");
+	auto sphereGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/icosphere.obj"));
 	Drawable sphere(
-		new ColorMat(vec3(0.1, 0.3f, 0.8f)),
-		&sphereGeom);
+		sphereGeom,
+		make_shared<ColorMat>(vec3(0.1, 0.3f, 0.8f)));
 	sphere.addMaterial(new ShadedMat(0.2f, 0.5f, 0.3f, 10.f));
 
 	sphere.setPosition(vec3(1.f, 0, 0));
@@ -1788,12 +1819,12 @@ void WindowManager::mainLoop() {
 	*/
 	//TEST vv
 	Drawable leftSquare(
-		new TextureMat(fbLeftEyeDraw.getTexture(GL_COLOR_ATTACHMENT0), TextureMat::POSITION),
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureMat(fbLeftEyeDraw.getTexture(GL_COLOR_ATTACHMENT0), TextureMat::POSITION));
 
 	Drawable rightSquare(
-		new TextureMat(fbRightEyeDraw.getTexture(GL_COLOR_ATTACHMENT0), TextureMat::POSITION),
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureMat(fbRightEyeDraw.getTexture(GL_COLOR_ATTACHMENT0), TextureMat::POSITION));
 
 	leftSquare.addMaterial(new TextureMat(fbLeftEyeDraw.getTexture(GL_COLOR_ATTACHMENT1), TextureMat::NORMAL));
 	rightSquare.addMaterial(new TextureMat(fbRightEyeDraw.getTexture(GL_COLOR_ATTACHMENT1), TextureMat::NORMAL));
@@ -1802,19 +1833,19 @@ void WindowManager::mainLoop() {
 	PosNormalShader pnShader;
 
 	Drawable leftSquareTest(
-		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-		new SimpleTexGeometry(points, coords2, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords2, 6, GL_TRIANGLES),
+		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
 
 	Drawable rightSquareTest(
-		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-		new SimpleTexGeometry(points, coords2, 6, GL_TRIANGLES));
+		new SimpleTexGeometry(points, coords2, 6, GL_TRIANGLES),
+		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
 
 	//TEST ^^
 
 	SimpleTexShader texShader;
 	SimpleShader shader;
-	TorranceSparrowShader tsShader;
-	TorranceSparrowShader tsTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
+	BlinnPhongShader bpShader;
+	BlinnPhongShader bpTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
 	});
 
 	TrackballCamera savedCam = cam;
@@ -1823,7 +1854,7 @@ void WindowManager::mainLoop() {
 
 	fbLeftEyeDraw.use();
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	tsShader.draw(cam, lightPos, dragon);
+	bpShader.draw(cam, lightPos, dragon);
 
 	fbWindow.use();
 
@@ -1833,8 +1864,8 @@ void WindowManager::mainLoop() {
 	//	loadWavefront("untrackedmodels/lstudio/", "lsystem.obj", &drawables, &tm);
 	//	loadWavefront("untrackedmodels/", "riccoSurface_take2", &drawables, &tm);
 
-	ElementGeometry objGeometry = objToElementGeometry("untrackedmodels/riccoSurface_take3.obj");
-	drawables.push_back(Drawable(new ShadedMat(0.3, 0.4, 0.4, 10.f), &objGeometry));
+	auto objGeometry = shared_ptr<ElementGeometry>(objToElementGeometry("untrackedmodels/riccoSurface_take3.obj"));
+	drawables.push_back(Drawable(objGeometry, make_shared<ShadedMat>(0.3, 0.4, 0.4, 10.f)));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 1, 1)));
 
 
@@ -1958,27 +1989,27 @@ void WindowManager::mainLoop() {
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
-		tsTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
+		bpTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
 
 		for (int i = 0; i < drawables.size(); i++) {
 		if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-		tsTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+		bpTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
 		}
 		else
-		tsShader.draw(vrCam.leftEye, lightPos, drawables[i]);
+		bpShader.draw(vrCam.leftEye, lightPos, drawables[i]);
 		}
 
 		//Draw right eye
 		fbRightEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		for (int i = 0; i < controllers.size(); i++)
-		tsTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
+		bpTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
 		if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-		tsTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+		bpTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 		}
 		else
-		tsShader.draw(vrCam.rightEye, lightPos, drawables[i]);
+		bpShader.draw(vrCam.rightEye, lightPos, drawables[i]);
 		}
 
 		blit(fbLeftEyeDraw, fbLeftEyeRead);
@@ -2033,10 +2064,10 @@ void WindowManager::mainLoop() {
 		//Draw headset
 		if (vrDisplay) {
 			vr::Texture_t leftTexture = {
-				(void*)(uintptr_t)fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
+				(void*)(uintptr_t)GLuint(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
 				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::Texture_t rightTexture = {
-				(void*)(uintptr_t)fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID(),
+				(void*)(uintptr_t)GLuint(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
 				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture);
@@ -2049,20 +2080,6 @@ void WindowManager::mainLoop() {
 		glfwPollEvents();
 	}
 
-
-	delete leftSquare.getMaterial(TextureMat::id);
-	delete leftSquare.getGeometryPtr();
-
-	delete dragon.getMaterial(ColorMat::id);
-	delete dragon.getMaterial(ShadedMat::id);
-
-	delete sphere.getMaterial(ColorMat::id);
-	delete sphere.getMaterial(ShadedMat::id);
-
-	fbLeftEyeDraw.deleteFramebuffer();
-	fbLeftEyeDraw.deleteTextures();
-	fbRightEyeDraw.deleteFramebuffer();
-	fbRightEyeDraw.deleteTextures();
 
 	glfwTerminate();
 	vr::VR_Shutdown();

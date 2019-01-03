@@ -42,7 +42,7 @@ void ColorWheel::thumbPos(vec2 pos) {
 	const float PRESS_RAD = 0.2f;
 	const float PRESS_DEPTH = 0.02f;
 
-	auto geom = dynamic_cast<StreamGeometry<vec3, vec3, unsigned char>*>(getGeometryPtr());
+	auto geom = dynamic_pointer_cast<StreamGeometry<vec3, vec3, unsigned char>>(getGeometryPtr());
 
 	for (auto it : depressionList) {
 		points[it.first] += modelspaceNormal()*it.second;
@@ -81,7 +81,7 @@ void ColorWheel::thumbPos(vec2 pos) {
 void ColorWheel::selectColor(int color) {
 	if (selectedColor == color) return;
 
-	auto geom = dynamic_cast<StreamGeometry<vec3, vec3, unsigned char>*>(getGeometryPtr());
+	auto geom = dynamic_pointer_cast<StreamGeometry<vec3, vec3, unsigned char>>(getGeometryPtr());
 
 	if (geom == nullptr) {
 		printf("StreamGeometry::selectColor() -- Incorrect geometry container\n");

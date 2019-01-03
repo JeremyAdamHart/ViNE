@@ -38,16 +38,16 @@ VRColorShader::VRColorShader(map<GLenum, string> defines) {
 bool VRColorShader::createProgram(map<GLenum, string> defines) {
 	programID = createGLProgram(shaders, defines);
 
-	return programID != 0;
+	return programID;
 }
 
 bool VRColorShader::createNewProgram(vector<pair<GLenum, string>> shaderNames, map<GLenum, string> defines) {
 	programID = createGLProgram(shaderNames, defines);
 
-	if (programID != 0)
+	if (programID)
 		calculateUniformLocations();
 
-	return programID != 0;
+	return programID;
 }
 
 void VRColorShader::calculateUniformLocations() {
