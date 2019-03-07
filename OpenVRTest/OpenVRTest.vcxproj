@@ -93,13 +93,13 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\RenderingExtensions\headers;$(SolutionDir)..\RenderingEngineLibrary\RenderingLibrary\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\JORL_Extensions;$(SolutionDir)..\RenderingEngineLibrary\JORL_Core;$(SolutionDir)..\RenderingEngineLibrary\JORL_VR;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>openvr_api.lib;glfw3.lib;RenderingCore.lib;RenderingExtensions.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Platform)\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\Win64;$(SolutionDir)..\RenderingEngineLibrary\GLFW\lib\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_Core.lib;JORL_Extensions.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -110,13 +110,13 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\RenderingExtensions\headers;$(SolutionDir)..\RenderingEngineLibrary\RenderingLibrary\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\JORL_Extensions;$(SolutionDir)..\RenderingEngineLibrary\JORL_Core;$(SolutionDir)..\RenderingEngineLibrary\JORL_VR;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Platform)\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\Win64;$(SolutionDir)..\RenderingEngineLibrary\GLFW\lib\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>openvr_api.lib;glfw.lib;RenderingCore.lib;RenderingExtensions.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_Core.lib;JORL_Extensions.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -129,15 +129,15 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\RenderingExtensions\headers;$(SolutionDir)..\RenderingEngineLibrary\RenderingLibrary\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\JORL_Extensions;$(SolutionDir)..\RenderingEngineLibrary\JORL_Core;$(SolutionDir)..\RenderingEngineLibrary\JORL_VR;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>openvr_api.lib;glfw3.lib;RenderingCore.lib;RenderingExtensions.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Platform)\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\Win64;$(SolutionDir)..\RenderingEngineLibrary\GLFW\lib\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_Core.lib;JORL_Extensions.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -150,7 +150,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\RenderingExtensions\headers;$(SolutionDir)..\RenderingEngineLibrary\RenderingLibrary\headers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)headers;$(SolutionDir)..\RenderingEngineLibrary\include;$(SolutionDir)..\RenderingEngineLibrary\JORL_Extensions;$(SolutionDir)..\RenderingEngineLibrary\JORL_Core;$(SolutionDir)..\RenderingEngineLibrary\JORL_VR;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -158,7 +158,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Platform)\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\Win64;$(SolutionDir)..\RenderingEngineLibrary\GLFW\lib\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>openvr_api.lib;glfw.lib;RenderingCore.lib;RenderingExtensions.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_Core.lib;JORL_Extensions.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>
@@ -173,9 +173,6 @@
     <ClCompile Include="VRColorShader.cpp" />
     <ClCompile Include="ColorWheel.cpp" />
     <ClCompile Include="VolumeIO.cpp" />
-    <ClCompile Include="VRCamera.cpp" />
-    <ClCompile Include="VRController.cpp" />
-    <ClCompile Include="VRTools.cpp" />
     <ClCompile Include="VRView.cpp" />
     <ClCompile Include="VRWindow.cpp" />
     <ClCompile Include="OpenVRTest.cpp" />
@@ -188,9 +185,6 @@
     <ClInclude Include="kd_tree.h" />
     <ClInclude Include="UndoStack.h" />
     <ClInclude Include="VolumeIO.h" />
-    <ClInclude Include="VRController.h" />
-    <ClInclude Include="VRTools.h" />
-    <ClInclude Include="VRCamera.h" />
     <ClInclude Include="VRView.h" />
     <ClInclude Include="VRWindow.h" />
   </ItemGroup>

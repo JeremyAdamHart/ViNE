@@ -24,15 +24,6 @@
     <ClCompile Include="VRWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="VRCamera.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VRTools.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VRController.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="BubbleShader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -51,15 +42,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="VRWindow.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VRCamera.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VRTools.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VRController.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="kd_tree.h">
