@@ -38,6 +38,8 @@ using namespace std;
 
 #include "VRController.h"
 #include "VRView.h"
+#include "VRContext.h"
+#include "VRDeviceManager.h"
 
 //Screenshot
 #pragma warning(disable:4996)
@@ -89,7 +91,6 @@ WindowManager::WindowManager() :
 	window = createWindow(window_width, window_height,
 		"You really should rename this");
 	initGlad();
-	vrDisplay = initVR();
 
 	glfwSwapInterval(0);
 
@@ -102,7 +103,6 @@ WindowManager::WindowManager(int width, int height, std::string name, glm::vec4 
 	glfwInit();
 	window = createWindow(window_width, window_height, name);
 	initGlad();
-	vrDisplay = initVR();
 
 	glfwSwapInterval(0);
 
@@ -123,7 +123,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 }
 
 void WindowManager::mainLoopNoAO() {
-	glfwSetCursorPosCallback(window, cursorPositionCallback);
+/*	glfwSetCursorPosCallback(window, cursorPositionCallback);
 
 	vec3 points[6] = {
 		//First triangle
@@ -443,6 +443,8 @@ void WindowManager::mainLoopNoAO() {
 
 	glfwTerminate();
 	vr::VR_Shutdown();
+
+	*/
 }
 
 ////////////////////////////////////////////
@@ -574,6 +576,22 @@ void setControllerBindingsWindows(VRControllerInterface *input, VRControllerHand
 		input->assignTouch(SPHERE_DISPLAY_CONTROL, Windows_EButton_Touchpad);
 		input->assignButton(SPHERE_DISPLAY_CONTROL, Windows_ETrigger);
 		input->assignTouch(SPHERE_SIZE_TOUCH_CONTROL, Windows_EButton_Touchpad);
+	}
+}
+
+void setBindings(VRControllerType type, VRControllerInterface *interface, VRControllerHand hand) {
+	if (type == VRControllerType::VIVE) {
+		setControllerBindingsVive(interface, hand);
+	}
+	else if (type == VRControllerType::OCULUS_TOUCH) {
+		setControllerBindingsOculusTouch(interface, hand);
+	}
+	else if (type == VRControllerType::WINDOWS) {
+		setControllerBindingsWindows(interface, hand);
+	}
+	else {
+		printf("Error: Unknown controller model - Using Vive controls as default\n");
+		setControllerBindingsVive(interface, hand);
 	}
 }
 
@@ -745,6 +763,15 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
 
+	SimpleTexManager tm;
+	VRContext vrContext(&tm);
+
+	if (vrContext.vrSystem == nullptr) {
+		vr::VR_Shutdown();
+		glfwTerminate();
+		return;
+	}
+
 	const int FRAMES_PER_SECOND = 90;
 
 	//Load model
@@ -813,14 +840,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		vec3(0, 0, -1)
 	};
 
-	SimpleTexManager tm;
-
-	if (vrDisplay == nullptr) {
-		vr::VR_Shutdown();
-		glfwTerminate();
-		return;
-	}
-
 	unsigned int SCREENSHOT_WIDTH = 6000;
 	unsigned int SCREENSHOT_HEIGHT = 6000;
 
@@ -829,137 +848,41 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	gWindowHeight = window_height;
 	unsigned int TEX_WIDTH = 800;
 	unsigned int TEX_HEIGHT = 800;
-	vrDisplay->GetRecommendedRenderTargetSize(&TEX_WIDTH, &TEX_HEIGHT);
+	vrContext.vrSystem->GetRecommendedRenderTargetSize(&TEX_WIDTH, &TEX_HEIGHT);
 
-	Framebuffer fbLeftEyeDraw = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
-	Framebuffer fbRightEyeDraw = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
-	Framebuffer fbLeftEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
-	Framebuffer fbRightEyeRead = createNewFramebuffer(TEX_WIDTH, TEX_HEIGHT);
+	Framebuffer fbLeftEyeDraw = createFramebufferWithColorAndDepth(TEX_WIDTH, TEX_HEIGHT, &tm, sampleNumber);
+	Framebuffer fbRightEyeDraw = createFramebufferWithColorAndDepth(TEX_WIDTH, TEX_HEIGHT, &tm, sampleNumber);
 
-	Framebuffer fbScreenshotDraw = createNewFramebuffer(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
-	Framebuffer fbScreenshotRead = createNewFramebuffer(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
-
-	int NUM_SAMPLES = sampleNumber;
-
-	if (!fbLeftEyeDraw.addTexture(
-		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-		GL_COLOR_ATTACHMENT0) ||
-		!fbLeftEyeDraw.addTexture(
-			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
-	{
-		std::cout << "FBO creation failed" << endl;
-	}
-	if (!fbRightEyeDraw.addTexture(
-		createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-		GL_COLOR_ATTACHMENT0) ||
-		!fbRightEyeDraw.addTexture(
-			createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
-	{
-		std::cout << "FBO creation failed" << endl;
-	}
-
-	if (!fbLeftEyeRead.addTexture(
-		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm), GL_COLOR_ATTACHMENT0)) {
-		std::cout << "FBO creation failed" << endl;
-	}
-	else if (!fbRightEyeRead.addTexture(
-		createTexture2D(TEX_WIDTH, TEX_HEIGHT, &tm), GL_COLOR_ATTACHMENT0)) {
-		std::cout << "FBO creation failed" << endl;
-	}
-
-	if (
-		!fbScreenshotDraw.addTexture(
-			createTexture2DMulti(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm, 8), GL_COLOR_ATTACHMENT0)
-		|| !fbScreenshotDraw.addTexture(
-			createDepthTextureMulti(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm, 8), GL_DEPTH_ATTACHMENT)
-		)
-		std::cout << "FBO creation failed" << std::endl;
-
-	if (
-		!fbScreenshotRead.addTexture(createTexture2D(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm), GL_COLOR_ATTACHMENT0)
-		||
-		!fbScreenshotRead.addTexture(createDepthTexture(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm), GL_DEPTH_ATTACHMENT)
-		)
-		std::cout << "FBO creation failed" << std::endl;
+	Framebuffer fbScreenshotDraw = createFramebufferWithColorAndDepth(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm, 8);
+	Framebuffer fbScreenshotRead = createFramebufferWithColorAndDepth(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm, 8);
 
 	Viewport leftEyeView(window_width, window_height);
 	Viewport rightEyeView(window_width / 2, window_height, window_width / 2);
 
 	//Parse tracked devices
-	int headsetIndex = 0;
-	vector<VRController> controllers(2);
-	vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
-
-	for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
-		vr::TrackedDeviceClass deviceClass = vrDisplay->GetTrackedDeviceClass(i);
-
-		switch (deviceClass) {
-		case vr::TrackedDeviceClass_HMD:
-			headsetIndex = i;
-			break;
-		case vr::TrackedDeviceClass_Controller:
-			VRController controller(i, vrDisplay, poses[i], &tm);
-			if (controllers[controller.hand].index != -1) {
-				controller.hand = (controller.hand == VRControllerHand::LEFT)
-					? VRControllerHand::RIGHT : VRControllerHand::LEFT;
-			}
-			
-			controllers[controller.hand] = controller;
-			break;
-		}
-	}
-
+	VRDeviceManager<VRCameraController, VRController> devices(vrContext.vrSystem, &tm);
+	VRController *controllers = devices.controllers;
 	VRControllerType controllerType = controllers[0].type;
 
-	if (controllerType == VRControllerType::VIVE) {
-		setControllerBindingsVive(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
-		setControllerBindingsVive(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
-	}else if(controllerType == VRControllerType::OCULUS_TOUCH){
-		setControllerBindingsOculusTouch(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
-		setControllerBindingsOculusTouch(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
-	}
-	else if (controllerType == VRControllerType::WINDOWS) {
-		setControllerBindingsWindows(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
-		setControllerBindingsWindows(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
-	}
-	else {
-		printf("Error: Unknown controller model - Using Vive controls as default\n");
-		setControllerBindingsVive(&controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
-		setControllerBindingsVive(&controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
-	}
+	setBindings(controllerType, &controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+	setBindings(controllerType, &controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
 
-	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllers[0].type == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
-
-	VRCameraController vrCam(&poses[headsetIndex], vrDisplay);
+	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllerType == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
 
 	//Squares for left and right views
 	Drawable leftSquare(
 		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
-		new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
+		new TextureMat(vrContext.getTexture(vr::EVREye::Eye_Left)));
 
 	Drawable rightSquare(
 		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
-		new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)));
+		new TextureMat(vrContext.getTexture(vr::EVREye::Eye_Right)));
 
 	SimpleTexShader texShader;
-	BlinnPhongShader bpTexShader({ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" }
-	});
+	BlinnPhongShader bpTexShader(BPTextureUsage::TEXTURE);
 	BlinnPhongShader bpShader;
 	BubbleShader bubbleShader;
-	SimpleShader wireframeShader;
-
-	/*bpTexShader.deleteProgram();
-	bpShader.deleteProgram();
-
-	bpTexShader.createNewProgram(
-		{ {GL_VERTEX_SHADER, "shaders/marchingCubeShader.vert"}, {GL_FRAGMENT_SHADER, "shaders/marchingCubeShader.frag"} },
-		{ { GL_FRAGMENT_SHADER, "#define USING_TEXTURE\n" } }
-	);
-
-	bpShader.createNewProgram(
-		{ { GL_VERTEX_SHADER, "shaders/marchingCubeShader.vert" },{ GL_FRAGMENT_SHADER, "shaders/marchingCubeShader.frag" } },
-		{}
-	);*/
+	SimpleShader wireframeShade;
 
 	TrackballCamera savedCam = cam;
 
@@ -1124,9 +1047,9 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
  	int frameTimeSamples = 0;
 	double lastTime = glfwGetTime();
 
-	vector<vec3> controllerPositions(controllers.size());
+	vector<vec3> controllerPositions(2);
 
-	VRSceneTransform sceneTransform(&controllers);
+	VRSceneTransform sceneTransform;
 	sceneTransform.setPosition(vec3(0.f, 1.f, -1.f));
 
 	//Updating
@@ -1154,13 +1077,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		displaySphere[0]= false;
 		displaySphere[1] = false;
 
-		//Get pose
-		vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount,
-			NULL, 0);
-
-		//Update camera
-		vrCam.update();
-		vrCam.setProjection(vrDisplay, 0.2f, 400.f);
+		devices.updatePose();
+		devices.updateState(vrContext.vrSystem);
 
 		vec2 trackpadDir[4] = { vec2(0, 1), vec2(1, 0), vec2(0, -1), vec2(-1, 0) };
 
@@ -1175,32 +1093,14 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE)
 			updateMapButtonPressed = false;
 
-		//Update controllers
-		static vector<bool> modeSwitchButton(controllers.size(), false);
-		static int drawMode = 0;
-		bool buttonChanged = false;
-		for (int i = 0; i < controllers.size(); i++) {
-			vr::VRControllerState_t state;
-			vr::TrackedDevicePose_t pose;
-			if (!vrDisplay->GetControllerStateWithPose(
-				vr::VRCompositor()->GetTrackingSpace(),
-				controllers[i].index,
-				&state,
-				sizeof(vr::VRControllerState_t),
-				&pose))
-			{
-				printf("Error reading controller state\n");
-			}
-
-			controllers[i].updatePose(poses[controllers[i].index]);
-			controllers[i].updateState(state);
-			controllers[i].input.updateState(state);
-		}
-
 		//Get time
 		static double lastTime = 0.f;
 		double currentTime = glfwGetTime();
-		sceneTransform.updateTransform(currentTime - lastTime, grabPositionModelspace);	//Not using time yet
+		sceneTransform.updateTransform(
+			currentTime - lastTime,
+			controllers[VRControllerHand::LEFT],
+			controllers[VRControllerHand::RIGHT],
+			grabPositionModelspace);
 		lastTime = currentTime;
 
 		const float MIN_TILT = (controllerHasTrackpad) ? 0.3f : 0.1f;	//Minimum offset from center for trackpads and joysticks
@@ -1231,14 +1131,11 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		const float MAX_DRAW_RADIUS = 0.2f;
 
 
-//		bool joystickCondition = (controllers[VRControllerHand::RIGHT].type == VRControllerType::VIVE)
-//			? false : controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL) > MIN_TILT;
-
-
 		if ((controllers[VRControllerHand::RIGHT].input.getActivation(SPHERE_SIZE_TOUCH_CONTROL)
 			+ (length(controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL)) > MIN_TILT)
-			+ (!controllerHasTrackpad)) >= 2){
-			//vec2 axis = controllers[1].axes[VRController::TRACKPAD_AXIS];
+			+ (!controllerHasTrackpad)) >= 2)
+		{
+			
 			vec2 axis = controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL);
 			float currentAngle = atan2(axis.y, axis.x);
 
@@ -1285,7 +1182,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 		//SEARCH KDTREE
 		vector<IndexVec3> neighbours;
-		for (int i = 0; i < controllers.size(); i++) {
+		for (int i = 0; i < 2; i++) {
 			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)){
 				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
@@ -1330,25 +1227,11 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
 
 		//Update bounding sphere on model and find fog bounds
-		/*vec3 bSphereCenter = vec3(sceneTransform.getTransform()*vec4(boundingSphere.pos, 1));
-		float bSphereRadius = sceneTransform.scale*boundingSphere.radius;
-		float fogDistance = std::max(length(0.5f*vrCam.leftEye.getPosition() + 0.5f*vrCam.rightEye.getPosition() 
-		- bSphereCenter) - bSphereRadius, 0.f);
-		float fogScale = bSphereRadius*0.5f;*/
-		//Update fog distance and scale
 		float closestPoint = std::numeric_limits<float>::max();
 		float furthestPoint = -std::numeric_limits<float>::max();
 		mat4 invModelMatrix = inverse(sceneTransform.getTransform());
-		vec3 cameraPosition = vec3(invModelMatrix*vec4(vrCam.leftEye.getPosition(), 1));
-		/*vec3 cameraDirection = normalize(vec3(invModelMatrix*vec4(vrCam.leftEye.getDirection(), 0)));
-		for (vec3 vert : convexHullMesh.vertices) {
-			float vertDist = dot(cameraDirection, vert - cameraPosition);
-			closestPoint = std::min(closestPoint, vertDist);
-			furthestPoint = std::max(furthestPoint, vertDist);
-		}
-		float fogDistance = std::max(closestPoint*sceneTransform.scale, 0.f);
-		float fogScale = (furthestPoint - closestPoint)*sceneTransform.scale;
-		*/
+		vec3 cameraPosition = vec3(invModelMatrix*vec4(devices.hmd.leftEye.getPosition(), 1));
+		
 		std::pair<float, float> distPair = getClosestAndFurthestDistanceToConvexHull(
 			cameraPosition, 
 			convexHullMesh.vertices.data(), 
@@ -1361,18 +1244,17 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 		//Setup screenshot
 		//Projection matrix for screenshots
-		//float aspectRatio = float(fbRightEyeRead.vp.width) / float(fbRightEyeRead.vp.height);
 		float aspectRatio = float(SCREENSHOT_WIDTH) / float(SCREENSHOT_HEIGHT);
 		static mat4 screenshotProjection = perspective(radians(80.f), 1.f, 0.01f, 10.f);
 		static mat4 savedProjection;
 		static bool screenshotPressed = false;
 		if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed) {
 			screenshotPressed = true;
-			savedProjection = vrCam.rightEye.getProjectionMatrix();
-			vrCam.rightEye.setProjectionMatrix(screenshotProjection);
+			savedProjection = devices.hmd.rightEye.getProjectionMatrix();
+			devices.hmd.rightEye.setProjectionMatrix(screenshotProjection);
 		}
 		else if(controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed){
-			vrCam.rightEye.setProjectionMatrix(savedProjection);
+			devices.hmd.rightEye.setProjectionMatrix(savedProjection);
 		}
 		else {
 			screenshotPressed = false;
@@ -1383,9 +1265,9 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && !saveViewPressed) {
 			saveViewPressed = true;
 			string filename = findFilenameVariation(string(loadedFile)+".view");
-			vec3 cameraDir = vec3(vrCam.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
+			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
 			VRView view;
-			view.generateView(vrCam.rightEye.getPosition(), cameraDir, &sceneTransform);
+			view.generateView(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);
 			view.scale = sceneTransform.scale;	//Should be part of function
 			saveVRViewToFile(filename.c_str(), &view);
 
@@ -1397,10 +1279,10 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		int keyPressed = getNumberKeyPressed(window);
 		if (keyPressed && !loadViewPressed) {
 			loadViewPressed = true;
-			vec3 cameraDir = vec3(vrCam.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
+			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
 			VRView view;
 			if (loadVRViewFromFile((string(loadedFile) + to_string(keyPressed) + string(".view")).c_str(), &view)) {
-				view.getViewFromCameraPositionAndOrientation(vrCam.rightEye.getPosition(), cameraDir, &sceneTransform);		//&drawables[0]);
+				view.getViewFromCameraPositionAndOrientation(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);		//&drawables[0]);
 				sceneTransform.scale = view.scale;		//Should be part of function
 				sceneTransform.velocity = vec3(0);
 				sceneTransform.angularVelocity = quat();
@@ -1419,39 +1301,30 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//Draw left eye
 		fbLeftEyeDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-//		colorShader.draw(vrCam.leftEye, lightPos, groundPlane);
-//		glClear(GL_DEPTH_BUFFER_BIT);
-		for (int i = 0; i < controllers.size(); i++)
-			bpTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
+		for (int i = 0; i < 2; i++)
+			bpTexShader.draw(devices.hmd.leftEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
-			colorShader.draw(vrCam.leftEye, lightPos, 
+			colorShader.draw(devices.hmd.leftEye, lightPos, 
 				fogScale, fogDistance, 
 				vec3(0.02f, 0.04f, 0.07f), drawables[i]);		//Add lightPos and colorMat checking
 		}
 		if (displayColorWheel) {
 			colorShader.draw(
-				vrCam.leftEye,
+				devices.hmd.leftEye,
 				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST),
 				fogScale, 10.f,
 				vec3(0.02f, 0.04f, 0.07f),
 				colorWheel);
 		}
-		/*
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		for (auto& drawable : drawables) {
-			wireframeShader.draw(vrCam.leftEye, drawable);
-		}
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		*/
+
 		for (int i = 0; i < 2; i++) {
 			if (displaySphere[i]) {
 				glCullFace(GL_FRONT);
-				bubbleShader.draw(vrCam.leftEye, drawingSphere[i]);
+				bubbleShader.draw(devices.hmd.leftEye, drawingSphere[i]);
 				glCullFace(GL_BACK);
-				bubbleShader.draw(vrCam.leftEye, drawingSphere[i]);
+				bubbleShader.draw(devices.hmd.leftEye, drawingSphere[i]);
 			}
 		}
-
 
 		//Draw right eye -- Or screenshot
 		if (!controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) || !screenshotPressed)
@@ -1459,45 +1332,32 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		else
 			fbScreenshotDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-//		colorShader.draw(vrCam.rightEye, lightPos, groundPlane);
-//		glClear(GL_DEPTH_BUFFER_BIT);
-		for (int i = 0; i < controllers.size(); i++)
-			bpTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
+		for (int i = 0; i < 2; i++)
+			bpTexShader.draw(devices.hmd.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
-			colorShader.draw(vrCam.rightEye, lightPos, 
+			colorShader.draw(devices.hmd.rightEye, lightPos, 
 				fogScale, fogDistance, vec3(0.02f, 0.04f, 0.07f), drawables[i]);
 		}
 		if (displayColorWheel) {
 			colorShader.draw(
-				vrCam.rightEye,
+				devices.hmd.rightEye,
 				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST), 
 				fogScale, 10.f,
 				vec3(0.02f, 0.04f, 0.07f),
 				colorWheel);
 		}
-		/*
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		for (auto& drawable : drawables) {
-			wireframeShader.draw(vrCam.rightEye, drawable);
-		}
-
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		*/
+		
 		for (int i = 0; i < 2; i++) {
 			if (displaySphere[i]) {
 				glCullFace(GL_FRONT);
-				bubbleShader.draw(vrCam.rightEye, drawingSphere[i]);
+				bubbleShader.draw(devices.hmd.rightEye, drawingSphere[i]);
 				glCullFace(GL_BACK);
-				bubbleShader.draw(vrCam.rightEye, drawingSphere[i]);
+				bubbleShader.draw(devices.hmd.rightEye, drawingSphere[i]);
 			}
 		}
 
 
 		glDisable(GL_BLEND);
-
-		//Transfer data to regular textures
-		blit(fbLeftEyeDraw, fbLeftEyeRead);
-		blit(fbRightEyeDraw, fbRightEyeRead);
 
 		if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && screenshotPressed)
 			blit(fbScreenshotDraw, fbScreenshotRead);
@@ -1510,23 +1370,9 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		glClearColor(1.0, 1.0, 1.0, 0.0);
 		texShader.draw(cam, leftSquare);
 
-		//rightEyeView.use();
-		//glClearColor(1.0, 1.0, 1.0, 1.0);
-		//texShader.draw(cam, rightSquare);
-
 		//Draw headset
-		if (vrDisplay) {
-			vr::Texture_t leftTexture = {
-				(void*)(uintptr_t)GLuint(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
-				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
-			vr::Texture_t rightTexture = {
-				(void*)(uintptr_t)GLuint(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0).getID()),
-				vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
-
-			vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture);
-			vr::VRCompositor()->Submit(vr::Eye_Right, &rightTexture);
-
-		}
+		vrContext.submitFrame(fbLeftEyeDraw, vr::EVREye::Eye_Left);
+		vrContext.submitFrame(fbRightEyeDraw, vr::EVREye::Eye_Right);
 
 		glEnable(GL_BLEND);
 
@@ -1535,7 +1381,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		//Write screenshot to file
 		if (screenshotPressed && controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL)) {
 			string filename = findFilenameVariation("Screenshot.png");
-			//fbRightEyeRead.use();
 
 			Texture rightTex = fbScreenshotRead.getTexture(GL_COLOR_ATTACHMENT0);
 
@@ -1576,7 +1421,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			saveButtonPressed = false;
 		}
 		static bool undoButtonPressed = false;
-//		bool pressed = controllers[0].buttons[VRController::MENU_BUTTON];
 		bool pressed = controllers[0].input.getActivation(UNDO_CONTROL);
 		if (pressed == false && undoButtonPressed) {
 			map<size_t, unsigned char> changes;
@@ -1591,7 +1435,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			undoButtonPressed = true;
 		}
 		static bool redoButtonPressed = false;
-//		pressed = controllers[1].buttons[VRController::MENU_BUTTON];
 		pressed = controllers[1].input.getActivation(REDO_CONTROL);
 		if (pressed == false && redoButtonPressed) {
 			map<size_t, unsigned char> changes;
@@ -1618,12 +1461,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 //Temporary testing
 void WindowManager::mainLoop() {
-
+/*
 	//Test quaterions
-	/*	quat rot = angleAxis(3.14159f, vec3(0, 1, 0));
-	vec4 point(1, 0, 0, 1);
-	vec4 res1 = rot*point*rot.
-	*/
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 
 	vec3 points[6] = {
@@ -1636,18 +1475,6 @@ void WindowManager::mainLoop() {
 		vec3(-0.5f, -0.5f, 0.f)*2.f,
 		vec3(-0.5f, 0.5f, 0.f)*2.f
 	};
-
-	/*	vec2 coords[6] = {
-	//First triangle
-	vec2(1, 0.f),
-	vec2(0.f, 0.f),
-	vec2(0.f, 1.f),
-	//Second triangle
-	vec2(0.f, 1.f),
-	vec2(1.f, 1.f),
-	vec2(1.f, 0.f)
-	};
-	*/
 	vec2 coords[6] = {
 		//First triangle
 		vec2(0, 1.f),
@@ -1693,24 +1520,6 @@ void WindowManager::mainLoop() {
 
 
 	const int NUM_SAMPLES = 1;
-	/*
-	if (!fbLeftEyeDraw.addTexture(
-	createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-	GL_COLOR_ATTACHMENT0) ||
-	!fbLeftEyeDraw.addTexture(
-	createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
-	{
-	std::cout << "FBO creation failed" << endl;
-	}
-	if (!fbRightEyeDraw.addTexture(
-	createTexture2DMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES),
-	GL_COLOR_ATTACHMENT0) ||
-	!fbRightEyeDraw.addTexture(
-	createDepthTextureMulti(TEX_WIDTH, TEX_HEIGHT, &tm, NUM_SAMPLES), GL_DEPTH_ATTACHMENT))
-	{
-	std::cout << "FBO creation failed" << endl;
-	}
-	*/
 
 	//TEST vv
 
@@ -1809,14 +1618,6 @@ void WindowManager::mainLoop() {
 	sphere.setPosition(vec3(1.f, 0, 0));
 
 	//Squares for left and right views
-	/*	Drawable leftSquare(
-	new TextureMat(fbLeftEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-	new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
-
-	Drawable rightSquare(
-	new TextureMat(fbRightEyeRead.getTexture(GL_COLOR_ATTACHMENT0)),
-	new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES));
-	*/
 	//TEST vv
 	Drawable leftSquare(
 		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
@@ -1985,36 +1786,6 @@ void WindowManager::mainLoop() {
 			+ 0.5f*vrCam.rightEye.getPosition()
 			+ vec3(0, 2, 0));
 
-		/*		//Draw left eye
-		fbLeftEyeDraw.use();
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		for (int i = 0; i < controllers.size(); i++)
-		bpTexShader.draw(vrCam.leftEye, lightPos, controllers[i]);
-
-		for (int i = 0; i < drawables.size(); i++) {
-		if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-		bpTexShader.draw(vrCam.leftEye, lightPos, drawables[i]);
-		}
-		else
-		bpShader.draw(vrCam.leftEye, lightPos, drawables[i]);
-		}
-
-		//Draw right eye
-		fbRightEyeDraw.use();
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		for (int i = 0; i < controllers.size(); i++)
-		bpTexShader.draw(vrCam.rightEye, lightPos, controllers[i]);
-		for (int i = 0; i < drawables.size(); i++) {
-		if (drawables[i].getMaterial(TextureMat::id) != nullptr) {
-		bpTexShader.draw(vrCam.rightEye, lightPos, drawables[i]);
-		}
-		else
-		bpShader.draw(vrCam.rightEye, lightPos, drawables[i]);
-		}
-
-		blit(fbLeftEyeDraw, fbLeftEyeRead);
-		blit(fbRightEyeDraw, fbRightEyeRead);
-		*/
 
 		//TEST vv AMBIENT OCCLUSION
 		//Draw left eye
@@ -2083,6 +1854,7 @@ void WindowManager::mainLoop() {
 
 	glfwTerminate();
 	vr::VR_Shutdown();
+	*/
 }
 
 void initGlad() {

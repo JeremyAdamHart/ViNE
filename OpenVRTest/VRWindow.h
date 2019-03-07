@@ -15,7 +15,7 @@
 // GLFW
 #include <GLFW/glfw3.h>
 
-#include <openvr.h>
+#include <openvr/openvr.h>
 
 #include <string>
 #include <glm/glm.hpp>
@@ -26,7 +26,6 @@
 class WindowManager {
 protected:
 	GLFWwindow *window;
-	vr::IVRSystem *vrDisplay;
 	void initGL();
 	
 	int window_width, window_height;
