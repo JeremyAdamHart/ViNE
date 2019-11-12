@@ -15,3 +15,7 @@ bool hasExtension(std::string filename, std::string matchedExtension);
 std::string swapExtension(std::string filename, std::string newExtension);
 std::string getFilename(std::string filepath);
 std::string findFilenameVariation(std::string filepath);
+std::string createPLYWithColors(std::string filename,
+	unsigned int* faces, unsigned int faceNum,
+	glm::vec3* positions, glm::vec3* normals, unsigned char* colors,
+	glm::vec3* colorMap, unsigned int pointNum, unsigned char removedColor);

@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <sstream>
+#include <../tinyply/source/tinyply.h>
 
 
 using namespace std;
@@ -184,4 +185,55 @@ std::vector<glm::vec3> colorMapLoader(std::string colorFileName) {
 
 	return colors;
 
+}
+
+std::string createPLYWithColors(std::string filename, 
+	unsigned int* faces, unsigned int faceNum,
+	glm::vec3* positions, glm::vec3* normals, unsigned char* colors, 
+	glm::vec3* colorMap, unsigned int pointNum, unsigned char removedColor)
+{
+	std::filebuf fb;
+	fb.open(filename, std::ios::out | std::ios::binary);
+	std::ostream outstream(&fb);
+	if (outstream.fail()) throw std::runtime_error("failed to open " + string(filename));
+
+	//Remove deleted faces
+	std::vector<unsigned int> newFaces;
+	for (unsigned int i = 0; i < faceNum; i++) {
+		unsigned int v_a = faces[3 * i];
+		unsigned int v_b = faces[3 * i + 1];
+		unsigned int v_c = faces[3 * i + 2];
+
+		if (colors[v_a] != removedColor || colors[v_b] != removedColor || colors[v_c] != removedColor) {
+			newFaces.push_back(v_a);
+			newFaces.push_back(v_b);
+			newFaces.push_back(v_c);
+		}
+	}
+
+	//Calculate colors
+	std::vector<unsigned char> newColors;
+	for (unsigned int i = 0; i < pointNum; i++) {
+		vec3 color = colorMap[colors[i]];
+		newColors.push_back(color.x*255.f);
+		newColors.push_back(color.y*255.f);
+		newColors.push_back(color.z*255.f);
+	}
+
+	using namespace tinyply;
+
+	PlyFile plyOutput;
+
+	plyOutput.add_properties_to_element("vertex", { "x", "y", "z" },
+		Type::FLOAT32, pointNum, reinterpret_cast<uint8_t*>(positions), Type::INVALID, 0);
+	plyOutput.add_properties_to_element("vertex", { "nx", "ny", "nz" },
+		Type::FLOAT32, pointNum, reinterpret_cast<uint8_t*>(normals), Type::INVALID, 0);
+	plyOutput.add_properties_to_element("vertex", { "red", "green", "blue" }, 
+		Type::UINT8, pointNum, newColors.data(), Type::INVALID, 0);
+	plyOutput.add_properties_to_element("face", { "vertex_indices" },
+		Type::UINT32, newFaces.size()/3, reinterpret_cast<uint8_t*>(newFaces.data()), Type::UINT8, 3);
+
+	plyOutput.write(outstream, true);
+
+	fb.close();
 }

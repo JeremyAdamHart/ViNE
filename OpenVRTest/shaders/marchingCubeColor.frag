@@ -38,7 +38,7 @@ float blinnPhongLighting(vec3 normal, vec3 position, vec3 viewPosition)
 
 void main(void)
 {
-	if(length(FragmentColor) < 0.5f)
+	if(length(FragmentColor) < 0.02f)
 		discard;
 
 	vec3 color = FragmentColor;

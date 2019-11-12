@@ -765,6 +765,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	SimpleTexManager tm;
 	VRContext vrContext(&tm);
+	//IndexedViewportVRContext vrContext(&tm);
 
 	if (vrContext.vrSystem == nullptr) {
 		vr::VR_Shutdown();
@@ -920,11 +921,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	VRColorShader colorShader(colorSet.size());
 
-	/*colorShader.createNewProgram(
-	{ { GL_VERTEX_SHADER, "shaders/marchingCubeColor.vert" },{ GL_FRAGMENT_SHADER, "shaders/marchingCubeColor.frag" } },
-	{ { GL_VERTEX_SHADER, string("#define MAX_COLOR_NUM " + to_string(colorSet.size()) + "\n") } }
-	);*/
-
 	enum {
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
@@ -1019,29 +1015,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	MeshInfoLoader convexHullMesh;
 	convexHullMesh.loadModelPly(convexHullName.c_str());
 
-/*	//TEST FOR DUPLICATE VERTICES
-	const float TEST_RANGE = 0.0001f;
-	int totalDuplicates = 0;
-	for (int i = 0; i < minfo.vertices.size(); i++) {
-		vector<IndexVec3> neighbours;
-
-		kdTree_findNeighbours<dimensions<IndexVec3>()>(
-			vertIndexPair.begin(), vertIndexPair.end(),
-			IndexVec3(-1, minfo.vertices[i]),
-			TEST_RANGE,
-			neighbours);
-
-		if (neighbours.size() > 1) {
-			printf("Duplicate found %d\n", neighbours.size());
-			totalDuplicates++;
-		}
-
-	}
-
-	printf("Total duplicates = %d\n", totalDuplicates);
-
-	//TEST FOR DUPLICATE VERTICES
-	*/
 	//Time tracking
 	double frameTime = 0.f;
  	int frameTimeSamples = 0;
@@ -1092,6 +1065,15 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		}
 		else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE)
 			updateMapButtonPressed = false;
+
+		static bool saveColoredPLYButton = false;
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !saveColoredPLYButton) {
+			printf("Saving colored ply\n");
+			createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
+				reinterpret_cast<unsigned char*>(streamGeometry->vboPointer<COLOR>()), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+		}
+		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
+			saveColoredPLYButton = false;
 
 		//Get time
 		static double lastTime = 0.f;
@@ -1153,7 +1135,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 					float diffB = currentAngle - lastAngle_TrackpadRadius;
 					float diff = (abs(diffA) < abs(diffB)) ? diffA : diffB;
 				
-					drawRadius = clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+					drawRadius = glm::clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
 					drawingSphere[0].setScale(vec3(drawRadius));
 					drawingSphere[1].setScale(vec3(drawRadius));
 
@@ -1163,7 +1145,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			else {
 				float scaleChange = pow(2.f, axis.y/float(FRAMES_PER_SECOND/2));	//Sphere size doubles in half a second
 
-				drawRadius = clamp(drawRadius*scaleChange, MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+				drawRadius = glm::clamp(drawRadius*scaleChange, MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
 				drawingSphere[0].setScale(vec3(drawRadius));
 				drawingSphere[1].setScale(vec3(drawRadius));
 			}

@@ -1,9 +1,9 @@
-122 122 122
-66 120 0		#Bracht
+255 255 255
+44 80 0			#Bracht
 155 177 124 	#Disk
-205 163 120		#Main veins
+125 109 56		#Main veins
 217 203 76		#Auxilliary veins 
 0 0 255
-66 120 40		#Voronoi
+44 80 20		#Voronoi
 231 149 48		#Ray
 1 1 1
