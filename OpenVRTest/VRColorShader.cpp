@@ -1,6 +1,7 @@
 #include "VRColorShader.h"
 #include "ColorSetMat.h"
 #include "ShadedMat.h"
+#include <string>
 
 using namespace glm;
 using namespace std;
@@ -17,6 +18,47 @@ enum {
 	FOG_SCALE_LOCATION,
 	COUNT
 };
+
+vector<pair<GLenum, string>> VRColorShaderBin::shaders() {
+	return {
+		{ GL_VERTEX_SHADER, "shaders/binMarchingCubeColor.vert" },
+		{ GL_FRAGMENT_SHADER, "shaders/binMarchingCubeColor.frag" }
+	};
+}
+
+VRColorShaderBin::VRColorShaderBin(int maxColorNum)
+	:ShaderT<ShadedMat, ColorSetMat>(shaders(), 
+		{{GL_VERTEX_SHADER, std::string("#define MAX_COLOR_NUM " + to_string(maxColorNum) + "\n") } }, 
+		{ "ka", "ks", "kd", "alpha",
+		"colors", "view_projection_matrix", "model_matrix", "viewPosition", "lightPos",
+		"fogDist", "fogColor", "fogScale" }){}
+
+void VRColorShaderBin::draw(const Camera &cam_left, const Camera &cam_right, glm::vec3 lightPos,
+	float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj) 
+{
+	glUseProgram(programID);
+
+	mat4 vp_matrix[2] = {
+			cam_left.getProjectionMatrix()*cam_left.getCameraMatrix(),
+			cam_right.getProjectionMatrix()*cam_right.getCameraMatrix() };
+
+	mat4 m_matrix = obj.getTransform();
+	vec3 camera_pos[2] = { cam_left.getPosition(), cam_right.getPosition() };
+
+	loadMaterialUniforms(obj);
+	glUniformMatrix4fv(uniformLocations[VP_MATRIX_LOCATION], 2, false, &vp_matrix[0][0][0]);
+	glUniformMatrix4fv(uniformLocations[M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
+	glUniform3fv(uniformLocations[VIEW_LOCATION], 2, &camera_pos[0][0]);
+	glUniform3f(uniformLocations[LIGHT_POS_LOCATION], lightPos.x, lightPos.y, lightPos.z);
+	glUniform1f(uniformLocations[FOG_SCALE_LOCATION], fogScale);
+	glUniform1f(uniformLocations[FOG_DISTANCE_LOCATION], fogDistance);
+	glUniform3f(uniformLocations[FOG_COLOR_LOCATION], fogColor.x, fogColor.y, fogColor.z);
+
+	obj.getGeometry().drawGeometry();
+	glUseProgram(0);
+}
+
+//REST SHOULD BE DEPRECATED?
 
 static vector<pair<GLenum, string>> shaders{
 	{ GL_VERTEX_SHADER, "shaders/marchingCubeColor.vert" },

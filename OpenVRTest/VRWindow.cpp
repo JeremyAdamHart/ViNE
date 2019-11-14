@@ -13,6 +13,7 @@ using namespace std;
 #include "BlinnPhongShader.h"
 #include "AOShader.h"
 #include "PosNormalShader.h"
+#include "BlinnPhongShaderVR.h"
 
 #include "ColorMat.h"
 #include "ShadedMat.h"
@@ -35,6 +36,7 @@ using namespace std;
 #include "UndoStack.h"
 #include "ColorWheel.h"
 #include "VRColorShader.h"
+#include "BlinnPhongShaderVR.h"
 
 #include "VRController.h"
 #include "VRView.h"
@@ -1414,6 +1416,652 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			streamGeometry->buffManager.endWrite();
 			undoButtonPressed = false;
 		} else if (pressed) {
+			undoButtonPressed = true;
+		}
+		static bool redoButtonPressed = false;
+		pressed = controllers[1].input.getActivation(REDO_CONTROL);
+		if (pressed == false && redoButtonPressed) {
+			map<size_t, unsigned char> changes;
+			undoStack.redo(&changes);
+			for (auto &it : changes) {
+				streamGeometry->modify<COLOR>(it.first, it.second);
+			}
+			streamGeometry->dump<COLOR>();
+			streamGeometry->buffManager.endWrite();
+			redoButtonPressed = false;
+		}
+		else if (pressed) {
+			redoButtonPressed = true;
+		}
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+
+	glfwTerminate();
+	vr::VR_Shutdown();
+}
+
+void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* savedFile, int sampleNumber) {
+	glfwSetCursorPosCallback(window, cursorPositionCallback);
+	glfwSetWindowSizeCallback(window, windowResizeCallback);
+
+	SimpleTexManager tm;
+	IndexedViewportVRContext vrContext(&tm);
+
+	if (vrContext.vrSystem == nullptr) {
+		vr::VR_Shutdown();
+		glfwTerminate();
+		return;
+	}
+
+	const int FRAMES_PER_SECOND = 90;
+
+	//Load model
+	MeshInfoLoader minfo;
+	vector<unsigned char> colors;	// (minfo.vertices.size(), 0);
+	string objName;
+	string savedFilename;
+	if (hasExtension(loadedFile, ".obj")) {
+		minfo.loadModel(loadedFile);
+
+		colors.resize(minfo.vertices.size(), 0);
+		objName = loadedFile;
+		if (!hasExtension(savedFile, ".clr"))
+			savedFilename = findFilenameVariation(
+				"saved/" + swapExtension(getFilename(loadedFile), "clr"));
+		else
+			savedFilename = savedFile;
+	}
+	else if (hasExtension(loadedFile, ".ply")) {
+		minfo.loadModelPly(loadedFile);
+		colors.resize(minfo.vertices.size(), 0);
+		objName = loadedFile;
+		if (!hasExtension(savedFile, ".clr"))
+			savedFilename = findFilenameVariation(
+				"saved/" + swapExtension(getFilename(loadedFile), "clr"));
+		else
+			savedFilename = savedFile;
+	}
+	else {
+		loadVolume(loadedFile, &minfo, &colors, &objName);
+		savedFilename = savedFile;
+	}
+
+	Sphere boundingSphere = getBoundingSphere(minfo.vertices);
+
+	printf("Number of vertices: %d\nNumber of faces: %d\n", minfo.vertices.size(), minfo.indices.size() / 3);
+
+	vec3 points[6] = {
+		//First triangle
+		vec3(-0.5f, 0.5f, 0.f)*2.f,
+		vec3(0.5f, -0.5f, 0.f)*2.f,
+		vec3(0.5f, 0.5f, 0.f)*2.f,
+		//Second triangle
+		vec3(0.5f, -0.5f, 0.f)*2.f,
+		vec3(-0.5f, 0.5f, 0.f)*2.f,
+		vec3(-0.5f, -0.5f, 0.f)*2.f
+	};
+
+	vec2 coords[6] = {
+		//First triangle
+		vec2(1, 0.f),
+		vec2(0.f, 1.f),
+		vec2(0.f, 0.f),
+		//Second triangle
+		vec2(0.f, 1.f),
+		vec2(1.f, 0.f),
+		vec2(1.f, 1.f)
+	};
+
+	vec3 normals[6] = {
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1)
+	};
+
+	unsigned int SCREENSHOT_WIDTH = 6000;
+	unsigned int SCREENSHOT_HEIGHT = 6000;
+
+	Framebuffer fbWindow(window_width, window_height);
+	gWindowWidth = window_width;
+	gWindowHeight = window_height;
+	unsigned int TEX_WIDTH = 800;
+	unsigned int TEX_HEIGHT = 800;
+	vrContext.vrSystem->GetRecommendedRenderTargetSize(&TEX_WIDTH, &TEX_HEIGHT);
+
+	IndexedFramebuffer fbDraw = createIndexedFramebufferWithColorAndDepth(TEX_WIDTH*2, TEX_HEIGHT, &tm, sampleNumber);
+	fbDraw.addViewport(TEX_WIDTH, TEX_HEIGHT, 0, 0);
+	fbDraw.addViewport(TEX_WIDTH, TEX_HEIGHT, TEX_WIDTH, 0);
+	IndexedFramebuffer fbScreenshotDraw = createIndexedFramebufferWithColorAndDepth(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm, 8);
+	IndexedFramebuffer fbScreenshotRead = createIndexedFramebufferWithColorAndDepth(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm, 8);
+
+	Viewport leftEyeView(window_width, window_height);
+	Viewport rightEyeView(window_width / 2, window_height, window_width / 2);
+
+	//Parse tracked devices
+	VRDeviceManager<VRCameraController, VRController> devices(vrContext.vrSystem, &tm);
+	VRController *controllers = devices.controllers;
+	VRControllerType controllerType = controllers[0].type;
+
+	setBindings(controllerType, &controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+	setBindings(controllerType, &controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
+
+	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllerType == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
+
+	//Squares for left and right views
+	Drawable windowSquare(
+		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureMat(vrContext.getTexture()));
+
+	SimpleTexShader texShader;
+//	BlinnPhongShader bpTexShader(BPTextureUsage::TEXTURE);
+//	BlinnPhongShader bpShader;
+//	BubbleShader bubbleShader;
+	SimpleShader wireframeShade;
+	
+	//Binocular shaders
+	BubbleShaderBin bubbleShader;
+	BlinnPhongShaderVR bpShader;
+	BlinnPhongTexShaderVR bpTexShader;
+
+	TrackballCamera savedCam = cam;
+
+	vec3 lightPos(-100.f, 100.f, 100.f);
+
+	fbWindow.use();
+
+	vector<Drawable> drawables;
+
+	//Set up transparency
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+
+	/////////////////////////	
+	// STREAM GEOMETRY SETUP
+	/////////////////////////
+	//Generate color set
+	vector<vec3> colorSet;
+	colorSet = {
+		vec3(1, 1, 1),
+		vec3(1, 0, 0),
+		vec3(1, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 1),
+		vec3(0, 0, 1),
+		vec3(1, 0, 1),
+		vec3(1, 0.5, 0.25f)
+	};
+
+	colorSet = colorMapLoader("default.cmp");
+
+	int COLOR_NUM = colorSet.size();
+
+	VRColorShaderBin colorShader(colorSet.size());
+
+	enum {
+		POSITION = 0, NORMAL, COLOR	//Attribute indices
+	};
+
+	//TEST -- Ground plane
+	unsigned int groundIndices[6] = { 0, 2, 1, 4, 3, 5 };
+	unsigned char groundColors[6] = { 0, 0, 0, 0, 0, 0 };
+	auto groundGeom = make_shared<StreamGeometry<vec3, vec3, unsigned char>>(6, vector<char>{ false, false, false });
+	groundGeom->loadElementArray(6, GL_STATIC_DRAW, groundIndices);
+	groundGeom->loadBuffer<POSITION>(points);
+	groundGeom->loadBuffer<NORMAL>(normals);
+	groundGeom->loadBuffer<COLOR>(groundColors);
+	Drawable groundPlane(
+		groundGeom,
+		make_shared<ColorSetMat>(colorSet)
+	);
+	groundPlane.addMaterial(new ShadedMat(0.3f, 0.4f, 0.4f, 50.f));
+	groundPlane.orientation = glm::angleAxis(PI / 2.f, vec3(1, 0, 0));
+	groundPlane.setScale(vec3(100.f));
+
+	//END TEST -- Ground Plane
+
+	auto streamGeometry = make_shared<StreamGeometry<vec3, vec3, unsigned char>>(minfo.vertices.size(),
+		std::vector<char>({ false, false, true }));
+	streamGeometry->loadElementArray(minfo.indices.size(), GL_STATIC_DRAW, minfo.indices.data());
+	streamGeometry->loadBuffer<POSITION>(minfo.vertices.data());
+	streamGeometry->loadBuffer<NORMAL>(minfo.normals.data());
+	streamGeometry->loadBuffer<COLOR>(colors.data());
+
+	drawables.push_back(Drawable(streamGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
+	drawables[0].addMaterial(new ColorSetMat(colorSet));
+	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
+
+
+	//Trackpad frame
+	ControllerReferenceFilepaths controllerPath(controllerType);
+	//	const char* filePathTrackpadFrame = (controllerType == VRControllerType::VIVE)
+	//		? "models/controllerTrackpadFrame.obj" : "models/OculusTouchTrackpadFrameLeft.obj";
+	MeshInfoLoader trackpadFrameObj(controllerPath.trackpadFrame);
+	vec3 trackpadCenter(trackpadFrameObj.vertices[0]);
+	vec3 trackpadBx(trackpadFrameObj.vertices[1] - trackpadCenter);
+	vec3 trackpadBy(trackpadFrameObj.vertices[2] - trackpadCenter);
+	vec3 trackpadNormal = normalize(cross(trackpadBx, trackpadBy));
+	const float DIST_FROM_TPAD = 0.013f;
+	const float COLOR_WHEEL_SCALE = 1.5f;
+
+	//Draw position
+	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
+	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
+
+	//Grab position
+	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
+	vec3 grabPositionModelspace = grabPositionObj.vertices[0];
+
+	//Trackpad geometry
+	ColorWheel colorWheel(
+		trackpadCenter + trackpadNormal * DIST_FROM_TPAD,
+		trackpadBx*COLOR_WHEEL_SCALE,
+		trackpadBy*COLOR_WHEEL_SCALE,
+		COLOR_NUM, 10);
+	colorWheel.addMaterial(new ShadedMat(0.7f, 0.3f, 0.3f, 10.f));
+	colorWheel.addMaterial(new ColorSetMat(colorSet));
+
+	const float TRACKPAD_LIGHT_DIST = 0.5f;
+
+	//Undo class
+	const int MAX_UNDO = 5;
+	UndoStack<unsigned char> undoStack(colors.data(), colors.size(), MAX_UNDO);
+
+	//Drawing sphere
+	unsigned char drawColor = 1;
+	float sphereTransparency = 1.0f;
+	float drawRadius = 0.05f;
+	auto sphereGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/icosphere.obj"));
+	auto sphereColorMat = make_shared<ColorMat>(colorSet[drawColor]);
+	Drawable drawingSphere[2];
+	for (int i = 0; i < 2; i++) {
+		drawingSphere[i] = Drawable(sphereGeom, sphereColorMat);
+		drawingSphere[i].setScale(vec3(drawRadius));
+	}
+
+	//Setup KDTree
+	vector<IndexVec3> vertIndexPair;
+	for (int i = 0; i < minfo.vertices.size(); i++) {
+		vertIndexPair.push_back(IndexVec3(i, minfo.vertices[i]));
+	}
+	using namespace spatial;
+	build_kdTree_inplace<dimensions<IndexVec3>()>(vertIndexPair.begin(), vertIndexPair.end());
+
+	//Load convex hull
+	string convexHullName = swapExtension(objName, ".hull");
+	MeshInfoLoader convexHullMesh;
+	convexHullMesh.loadModelPly(convexHullName.c_str());
+
+	//Time tracking
+	double frameTime = 0.f;
+	int frameTimeSamples = 0;
+	double lastTime = glfwGetTime();
+
+	vector<vec3> controllerPositions(2);
+
+	VRSceneTransform sceneTransform;
+	sceneTransform.setPosition(vec3(0.f, 1.f, -1.f));
+
+	//Updating
+	int counter = 0;
+	float lastAngle_TrackpadRadius = 0.f;
+	bool released_TrackpadRadius = true;
+	bool displaySphere[2] = { false, false };
+	bool displayColorWheel = false;
+	bool paintingButtonPressed[2] = { false, false };
+
+	while (!glfwWindowShouldClose(window)) {
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		if (gWindowWidth != window_width || gWindowHeight != window_height) {
+			window_width = gWindowWidth;
+			window_height = gWindowHeight;
+			fbWindow.resize(window_width, window_height);
+			leftEyeView.width = window_width;
+			leftEyeView.height = window_height;
+			rightEyeView.x = leftEyeView.width;
+			rightEyeView.width = window_width - leftEyeView.width;
+			rightEyeView.height = window_height;
+		}
+
+		displaySphere[0] = false;
+		displaySphere[1] = false;
+
+		devices.updatePose();
+		devices.updateState(vrContext.vrSystem);
+
+		vec2 trackpadDir[4] = { vec2(0, 1), vec2(1, 0), vec2(0, -1), vec2(-1, 0) };
+
+		//Update colormap
+		static bool updateMapButtonPressed = false;
+		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !updateMapButtonPressed) {
+			updateMapButtonPressed = true;
+			colorSet = colorMapLoader("default.cmp");
+			dynamic_pointer_cast<ColorSetMat>(drawables[0].getMaterial(ColorSetMat::id))->colors = colorSet;
+			dynamic_pointer_cast<ColorSetMat>(colorWheel.getMaterial(ColorSetMat::id))->colors = colorSet;
+		}
+		else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE)
+			updateMapButtonPressed = false;
+
+		static bool saveColoredPLYButton = false;
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !saveColoredPLYButton) {
+			printf("Saving colored ply\n");
+			createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
+				reinterpret_cast<unsigned char*>(streamGeometry->vboPointer<COLOR>()), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+		}
+		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
+			saveColoredPLYButton = false;
+
+		//Get time
+		static double lastTime = 0.f;
+		double currentTime = glfwGetTime();
+		sceneTransform.updateTransform(
+			currentTime - lastTime,
+			controllers[VRControllerHand::LEFT],
+			controllers[VRControllerHand::RIGHT],
+			grabPositionModelspace);
+		lastTime = currentTime;
+
+		const float MIN_TILT = (controllerHasTrackpad) ? 0.3f : 0.1f;	//Minimum offset from center for trackpads and joysticks
+
+		//Change color based on axis
+		if (controllers[VRControllerHand::LEFT].input.getActivation(COLOR_DISPLAY_CONTROL) ||
+			(!controllerHasTrackpad &&
+				length(controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL)) > MIN_TILT))
+		{
+			vec2 axis = controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL);
+			displayColorWheel = true;
+			colorWheel.thumbPos(axis);
+			if (controllerHasTrackpad || length(axis) > MIN_TILT) {
+				//			vec2 axis = controllers[0].axes[VRController::TRACKPAD_AXIS];
+				drawColor = axisToIndex(axis, COLOR_NUM);
+				sphereColorMat->color = vec4(colorSet[drawColor], sphereTransparency);
+				colorWheel.selectColor(drawColor);
+			}
+		}
+		else {
+			colorWheel.selectColor(COLOR_NUM);		//Unset value
+			displayColorWheel = false;
+			colorWheel.thumbPos(vec2(20.f, 20.f));
+		}
+		//Change radius based on axis
+		const float SCALE_PER_ROTATION = 2.f;
+		const float MIN_DRAW_RADIUS = 0.01f;
+		const float MAX_DRAW_RADIUS = 0.2f;
+
+
+		if ((controllers[VRControllerHand::RIGHT].input.getActivation(SPHERE_SIZE_TOUCH_CONTROL)
+			+ (length(controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL)) > MIN_TILT)
+			+ (!controllerHasTrackpad)) >= 2)
+		{
+
+			vec2 axis = controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL);
+			float currentAngle = atan2(axis.y, axis.x);
+
+			if (controllerHasTrackpad) {
+				if (released_TrackpadRadius) {
+					lastAngle_TrackpadRadius = currentAngle;
+					released_TrackpadRadius = false;
+				}
+				else {
+					//Find shortest angular distance from last to current position
+					float savedCurrentAngle = currentAngle;
+					float diffA = currentAngle - lastAngle_TrackpadRadius;
+					if (currentAngle < lastAngle_TrackpadRadius) currentAngle += 2.f*PI;
+					else lastAngle_TrackpadRadius += 2.f*PI;
+					float diffB = currentAngle - lastAngle_TrackpadRadius;
+					float diff = (abs(diffA) < abs(diffB)) ? diffA : diffB;
+
+					drawRadius = glm::clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+					drawingSphere[0].setScale(vec3(drawRadius));
+					drawingSphere[1].setScale(vec3(drawRadius));
+
+					lastAngle_TrackpadRadius = savedCurrentAngle;
+				}
+			}
+			else {
+				float scaleChange = pow(2.f, axis.y / float(FRAMES_PER_SECOND / 2));	//Sphere size doubles in half a second
+
+				drawRadius = glm::clamp(drawRadius*scaleChange, MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+				drawingSphere[0].setScale(vec3(drawRadius));
+				drawingSphere[1].setScale(vec3(drawRadius));
+			}
+			displaySphere[1] = true;
+		}
+		else {
+			released_TrackpadRadius = true;
+		}
+
+		//Update model
+		for (int i = 0; i < drawables.size(); i++) {
+			drawables[i].setOrientation(sceneTransform.getOrientationQuat());
+			drawables[i].setPosition(sceneTransform.getPos());
+			drawables[i].setScale(vec3(sceneTransform.scale));
+		}
+
+		//SEARCH KDTREE
+		vector<IndexVec3> neighbours;
+		for (int i = 0; i < 2; i++) {
+			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)) {
+				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
+				mat4 invrsTrans = inverse(sceneTransform.getTransform());
+				pos = vec3(invrsTrans*vec4(pos, 1));
+				float searchRadius = drawRadius / sceneTransform.scale;
+
+				if (controllers[i].input.getScalar(PAINT_CONTROL) > 0.95f) {
+					if (paintingButtonPressed[i] == false) {
+						paintingButtonPressed[i] = true;
+						undoStack.startNewState();
+					}
+					kdTree_findNeighbours<dimensions<IndexVec3>()>(
+						vertIndexPair.begin(), vertIndexPair.end(),
+						IndexVec3(-1, pos),
+						searchRadius*searchRadius,
+						neighbours);
+				}
+				else {
+					paintingButtonPressed[i] = false;
+				}
+
+				displaySphere[i] = true;		//TODO get rid of?
+			}
+			else {
+				paintingButtonPressed == false;
+			}
+		}
+		for (int i = 0; i < neighbours.size(); i++) {
+			streamGeometry->modify<COLOR>(neighbours[i].index, drawColor);
+			undoStack.modify(neighbours[i].index, drawColor);
+		}
+
+		streamGeometry->dump<COLOR>();
+		streamGeometry->buffManager.endWrite();
+
+		//Update color wheel position
+		colorWheel.position = controllers[0].position;
+		colorWheel.orientation = controllers[0].orientation;
+
+		//Update sphere positions
+		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
+		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
+
+		//Update bounding sphere on model and find fog bounds
+		float closestPoint = std::numeric_limits<float>::max();
+		float furthestPoint = -std::numeric_limits<float>::max();
+		mat4 invModelMatrix = inverse(sceneTransform.getTransform());
+		vec3 cameraPosition = vec3(invModelMatrix*vec4(devices.hmd.leftEye.getPosition(), 1));
+
+		std::pair<float, float> distPair = getClosestAndFurthestDistanceToConvexHull(
+			cameraPosition,
+			convexHullMesh.vertices.data(),
+			convexHullMesh.vertices.size(),
+			convexHullMesh.indices.data(),
+			convexHullMesh.indices.size() / 3);
+
+		float fogDistance = distPair.first*sceneTransform.scale;
+		float fogScale = (distPair.second - distPair.first)*0.5f*sceneTransform.scale;
+
+		//Setup screenshot
+		//Projection matrix for screenshots
+		float aspectRatio = float(SCREENSHOT_WIDTH) / float(SCREENSHOT_HEIGHT);
+		static mat4 screenshotProjection = perspective(radians(80.f), 1.f, 0.01f, 10.f);
+		static mat4 savedProjection;
+		static bool screenshotPressed = false;
+		if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed) {
+			screenshotPressed = true;
+			savedProjection = devices.hmd.rightEye.getProjectionMatrix();
+			devices.hmd.rightEye.setProjectionMatrix(screenshotProjection);
+		}
+		else if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed) {
+			devices.hmd.rightEye.setProjectionMatrix(savedProjection);
+		}
+		else {
+			screenshotPressed = false;
+		}
+
+		//Load and save views
+		static bool saveViewPressed = false;
+		if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && !saveViewPressed) {
+			saveViewPressed = true;
+			string filename = findFilenameVariation(string(loadedFile) + ".view");
+			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
+			VRView view;
+			view.generateView(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);
+			view.scale = sceneTransform.scale;	//Should be part of function
+			saveVRViewToFile(filename.c_str(), &view);
+
+		}
+		else if (!controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && saveViewPressed)
+			saveViewPressed = false;
+
+		static bool loadViewPressed = false;
+		int keyPressed = getNumberKeyPressed(window);
+		if (keyPressed && !loadViewPressed) {
+			loadViewPressed = true;
+			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
+			VRView view;
+			if (loadVRViewFromFile((string(loadedFile) + to_string(keyPressed) + string(".view")).c_str(), &view)) {
+				view.getViewFromCameraPositionAndOrientation(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);		//&drawables[0]);
+				sceneTransform.scale = view.scale;		//Should be part of function
+				sceneTransform.velocity = vec3(0);
+				sceneTransform.angularVelocity = quat();
+			}
+		}
+		else if (!keyPressed && loadViewPressed)
+			loadViewPressed = false;
+
+		////////////
+		// DRAWING
+		///////////
+		glLineWidth(10.f);
+		glEnable(GL_MULTISAMPLE);
+		glClearColor(0.f, 0.f, 0.f, 0.f);
+
+		fbDraw.use();
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		for (int i = 0; i < 2; i++)
+			bpTexShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, lightPos, controllers[i]);
+		for (int i = 0; i < drawables.size(); i++) {
+			colorShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, lightPos,
+				fogScale, fogDistance,
+				vec3(0.02f, 0.04f, 0.07f), drawables[i]);		//Add lightPos and colorMat checking
+		}
+		if (displayColorWheel) {
+			colorShader.draw(
+				devices.hmd.leftEye,
+				devices.hmd.rightEye,
+				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST),
+				fogScale, 10.f,
+				vec3(0.02f, 0.04f, 0.07f),
+				colorWheel);
+		}
+
+		for (int i = 0; i < 2; i++) {
+			if (displaySphere[i]) {
+				glCullFace(GL_FRONT);
+				bubbleShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, drawingSphere[i]);
+				glCullFace(GL_BACK);
+				bubbleShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, drawingSphere[i]);
+			}
+		}
+
+		glDisable(GL_MULTISAMPLE);
+		glDisable(GL_BLEND);
+
+		//Draw window
+		fbWindow.use();
+		//leftEyeView.use();
+		glClearColor(1.0, 1.0, 1.0, 0.0);
+		texShader.draw(cam, windowSquare);
+
+		//Draw headset
+		vrContext.submitFrame(fbDraw);
+
+		glEnable(GL_BLEND);
+
+		checkGLErrors("Buffer overflow?");
+
+		//Write screenshot to file
+		if (screenshotPressed && controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL)) {
+			string filename = findFilenameVariation("Screenshot.png");
+
+			Texture rightTex = fbScreenshotRead.getTexture(GL_COLOR_ATTACHMENT0);
+
+			size_t imageSize = rightTex.getWidth()*rightTex.getHeight() * 4;
+			unsigned char *data = new unsigned char[imageSize];
+			glGetTextureImage(rightTex.getID(), 0, GL_RGBA, GL_UNSIGNED_BYTE, imageSize, data);
+			stbi_flip_vertically_on_write(true);
+			stbi_write_png(filename.c_str(), rightTex.getWidth(), rightTex.getHeight(), 4, data, 0);
+
+			delete[] data;
+
+			fbWindow.use();
+		}
+
+		if (frameTimeSamples > 30) {
+			double currentTime = glfwGetTime();
+			frameTime = currentTime - lastTime;
+			//			cout << "Time per frame = " << frameTime/double(frameTimeSamples) << endl;
+			frameTimeSamples = 0;
+			lastTime = currentTime;
+		}
+		else {
+			frameTimeSamples++;
+		}
+
+		static bool saveButtonPressed = false;
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !saveButtonPressed) {
+			if (saveVolume(savedFilename.c_str(), objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
+				printf("Saved %s successfully\n", savedFilename.c_str());
+			else {
+				printf("Attempting fallback - Saving to fallback.clr...\n");
+				if (saveVolume("fallback.clr", objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
+					printf("Saved fallback.clr successfully\n");
+			}
+			saveButtonPressed = true;
+		}
+		else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
+			saveButtonPressed = false;
+		}
+		static bool undoButtonPressed = false;
+		bool pressed = controllers[0].input.getActivation(UNDO_CONTROL);
+		if (pressed == false && undoButtonPressed) {
+			map<size_t, unsigned char> changes;
+			undoStack.undo(&changes);
+			for (auto &it : changes) {
+				streamGeometry->modify<COLOR>(it.first, it.second);
+			}
+			streamGeometry->dump<COLOR>();
+			streamGeometry->buffManager.endWrite();
+			undoButtonPressed = false;
+		}
+		else if (pressed) {
 			undoButtonPressed = true;
 		}
 		static bool redoButtonPressed = false;

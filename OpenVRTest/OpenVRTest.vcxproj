@@ -117,7 +117,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Platform)\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\Win64;$(SolutionDir)..\RenderingEngineLibrary\GLFW\lib\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_Core.lib;JORL_Extensions.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -160,7 +160,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)..\RenderingEngineLibrary\$(Platform)\$(Configuration);$(SolutionDir)..\RenderingEngineLibrary\lib;$(SolutionDir)lib\Win64;$(SolutionDir)..\RenderingEngineLibrary\GLFW\lib\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_Core.lib;JORL_Extensions.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>openvr_api.lib;glfw.lib;JORL_VR.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>
@@ -181,6 +181,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\headers\ConvexHull.h" />
+    <ClInclude Include="BlinnPhongShaderVR.h" />
     <ClInclude Include="BubbleShader.h" />
     <ClInclude Include="VRColorShader.h" />
     <ClInclude Include="ColorWheel.h" />

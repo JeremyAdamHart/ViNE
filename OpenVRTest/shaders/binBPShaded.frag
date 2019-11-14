@@ -8,14 +8,13 @@ in vec3 ModelPosition;
 in vec3 FragmentNormal;
 in vec2 FragmentTexCoord;
 
-uniform vec3 camera_position;
+uniform vec3 camera_position[2];
 
 #ifdef USING_TEXTURE
 	uniform sampler2D colorTexture;
 #else
 	uniform vec4 color;
 #endif
-
 
 uniform vec3 lightPos;
 uniform float ks = 0.5;
@@ -53,7 +52,7 @@ void main(void)
 		float alpha = color.a;
 	#endif
 
- 	vec3 color = blinnPhongLighting(normalize(FragmentNormal), ModelPosition, camera_position)
+ 	vec3 color = blinnPhongLighting(normalize(FragmentNormal), ModelPosition, camera_position[gl_ViewportIndex])
  	*baseColor;
 
  	PixelColour = vec4(color, alpha);

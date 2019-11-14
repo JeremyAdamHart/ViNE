@@ -68,5 +68,8 @@
     <ClInclude Include="VRView.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="BlinnPhongShaderVR.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

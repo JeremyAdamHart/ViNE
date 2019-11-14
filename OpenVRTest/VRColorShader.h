@@ -8,9 +8,21 @@
 #include "Drawable.h"
 #include "Camera.h"
 #include "Scene.h"
+#include "TemplatedShader.h"
+#include "ColorSetMat.h"
+#include "ShadedMat.h"
 #include <vector>
 
 namespace renderlib {
+
+class VRColorShaderBin : public ShaderT<ShadedMat, ColorSetMat> {
+	static vector<pair<GLenum, string>> shaders();
+
+public:
+	VRColorShaderBin(int maxColorNum);
+	void draw(const Camera &leftCam, const Camera &rightCam, glm::vec3 lightPos,
+		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
+};
 
 class VRColorShader : public Shader {
 protected:

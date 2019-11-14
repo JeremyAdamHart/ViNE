@@ -1,8 +1,16 @@
 #pragma once
 
-#include "SimpleShader.h""
+#include "SimpleShader.h"
+#include "TemplatedShader.h"
+#include "ColorMat.h"
 
 namespace renderlib {
+
+class BubbleShaderBin : public ShaderT<ColorMat> {
+public:
+	BubbleShaderBin();
+	void draw(const Camera& cam_left, const Camera& cam_right, Drawable &obj);
+};
 
 //TODO: Does the inheritance make sense?
 class BubbleShader : public SimpleShader {

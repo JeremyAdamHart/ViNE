@@ -11,11 +11,38 @@ enum {
 	VIEW_LOCATION,
 	COUNT
 };
+BubbleShaderBin::BubbleShaderBin()
+	:ShaderT<ColorMat>(
+		{{GL_VERTEX_SHADER, "shaders/binBubbleShader.vert"},
+		{GL_FRAGMENT_SHADER, "shaders/binBubbleShader.frag"} },
+		{},
+		{ "color", "view_projection_matrix", "model_matrix", "view_position" })
+{}
+void BubbleShaderBin::draw(const Camera& cam_left, const Camera& cam_right, Drawable &obj) {
+	glUseProgram(programID);
+
+	mat4 vp_matrix[2] = {
+		cam_left.getProjectionMatrix()*cam_left.getCameraMatrix(),
+		cam_right.getProjectionMatrix()*cam_right.getCameraMatrix() };
+
+	mat4 m_matrix = obj.getTransform();
+	vec3 camera_pos[2] = { cam_left.getPosition(), cam_right.getPosition() };
+
+	loadMaterialUniforms(obj);
+	glUniformMatrix4fv(uniformLocations[VP_MATRIX_LOCATION], 2, false, &vp_matrix[0][0][0]);
+	glUniformMatrix4fv(uniformLocations[M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
+	glUniform3fv(uniformLocations[VIEW_LOCATION], 2, &camera_pos[0][0]);
+
+	obj.getGeometry().drawGeometry();
+	glUseProgram(0);
+}		
+
 
 vector<pair<GLenum, string>> BubbleShader::defaultShaders() {
 	return{ { GL_VERTEX_SHADER, "shaders/bubbleShader.vert" },
 	{ GL_FRAGMENT_SHADER, "shaders/bubbleShader.frag" } };
 }
+
 
 BubbleShader::BubbleShader(map<GLenum, string> defines):SimpleShader(BubbleShader::defaultShaders(), defines) {
 	calculateUniformLocations();
