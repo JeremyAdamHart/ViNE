@@ -34,10 +34,11 @@ int main(int argc, char** argv)
 	WindowManager wm(800, 400, "VR Segmenting");
 	char* loadFilename = "icosahedron.ply";	//"untrackedmodels/riccoSurface_take3.obj";	//"models/dragon.obj";
 	char* saveFilename = "saved/default.clr";
-	int multisampling = 8;
+	int multisampling = 4;
 	switch (argc) {
 	case 1:
 		//Change to ricco
+		//loadFilename = "untrackedmodels/dragon.ply";
 		loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
 		saveFilename = "saved/default.clr";
 		break;
