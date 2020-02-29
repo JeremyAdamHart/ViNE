@@ -6,7 +6,6 @@ using namespace glm;
 using namespace std;
 
 #include "Drawable.h"
-#include "SimpleGeometry.h"
 
 #include "SimpleShader.h"
 #include "simpleTexShader.h"
@@ -90,6 +89,7 @@ WindowManager::WindowManager() :
 	window_width(800), window_height(800)
 {
 	glfwInit();
+	//glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 	window = createWindow(window_width, window_height,
 		"You really should rename this");
 	initGlad();
@@ -103,6 +103,7 @@ WindowManager::WindowManager(int width, int height, std::string name, glm::vec4 
 	window_width(width), window_height(height)
 {
 	glfwInit();
+	//glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 	window = createWindow(window_width, window_height, name);
 	initGlad();
 
@@ -122,6 +123,54 @@ void printMat4(const mat4 &m) {
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	if (key == GLFW_KEY_SPACE && action == GLFW_RELEASE)
 		reloadShaders = true;
+}
+
+
+void APIENTRY glDebugOutput(GLenum source,
+	GLenum type,
+	GLuint id,
+	GLenum severity,
+	GLsizei length,
+	const GLchar *message,
+	const void *userParam)
+{
+	// ignore non-significant error/warning codes
+	//if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
+
+	std::cout << "---------------" << std::endl;
+	std::cout << "Debug message (" << id << "): " << message << std::endl;
+
+	switch (source)
+	{
+	case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
+	case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
+	case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler"; break;
+	case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party"; break;
+	case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application"; break;
+	case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other"; break;
+	} std::cout << std::endl;
+
+	switch (type)
+	{
+	case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error"; break;
+	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behaviour"; break;
+	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behaviour"; break;
+	case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability"; break;
+	case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance"; break;
+	case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker"; break;
+	case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group"; break;
+	case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group"; break;
+	case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other"; break;
+	} std::cout << std::endl;
+
+	switch (severity)
+	{
+	case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: high"; break;
+	case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: medium"; break;
+	case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
+	case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
+	} std::cout << std::endl;
+	std::cout << std::endl;
 }
 
 void WindowManager::mainLoopNoAO() {
@@ -520,6 +569,7 @@ enum : int {
 	SPHERE_SIZE_TOUCH_CONTROL,
 	SPHERE_DISPLAY_CONTROL,
 	SCREENSHOT_CONTROL,
+	TOGGLE_VISIBILITY_CONTROL,
 	SAVE_VIEW_CONTROL
 };
 
@@ -550,6 +600,7 @@ void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand ha
 		input->assignAxis(COLOR_SELECT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignTouch(COLOR_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
+		input->assignButton(TOGGLE_VISIBILITY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 //		input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 
 	} else {
@@ -756,7 +807,7 @@ class MarchingCubeBPShader : public ShaderT<ShadedMat, ColorMat> {
 	glUniform3f(uniformLocations[CAMERA_POS_LOCATION], camera_pos.x, camera_pos.y, camera_pos.z);
 	glUniform3f(uniformLocations[LIGHT_POS_LOCATION],
 		lightPos.x, lightPos.y, lightPos.z);
-	obj.getGeometry().drawGeometry();
+	obj.getGeometry().drawGeometry(programID);
 	glUseProgram(0);
 	}
 };
@@ -874,11 +925,11 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	//Squares for left and right views
 	Drawable leftSquare(
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureGeometry(GL_TRIANGLES, points, coords, 6),
 		new TextureMat(vrContext.getTexture(vr::EVREye::Eye_Left)));
 
 	Drawable rightSquare(
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureGeometry(GL_TRIANGLES, points, coords, 6),
 		new TextureMat(vrContext.getTexture(vr::EVREye::Eye_Right)));
 
 	SimpleTexShader texShader;
@@ -927,6 +978,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		POSITION=0, NORMAL, COLOR	//Attribute indices
 	 };
 
+	auto colorSetMat = make_shared<ColorSetMat>(colorSet);
+
 	//TEST -- Ground plane
 	unsigned int groundIndices[6] = { 0, 2, 1, 4, 3, 5 };
 	unsigned char groundColors[6] = { 0, 0, 0, 0, 0, 0 };
@@ -937,7 +990,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	groundGeom->loadBuffer<COLOR>(groundColors);
 	Drawable groundPlane(
 		groundGeom,
-		make_shared<ColorSetMat>(colorSet)
+		colorSetMat
+		//make_shared<ColorSetMat>(colorSet)
 	);
 	groundPlane.addMaterial(new ShadedMat(0.3f, 0.4f, 0.4f, 50.f));
 	groundPlane.orientation = glm::angleAxis(PI / 2.f, vec3(1, 0, 0));
@@ -953,14 +1007,12 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	streamGeometry->loadBuffer<COLOR>(colors.data());
 
 	drawables.push_back(Drawable(streamGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
-	drawables[0].addMaterial(new ColorSetMat(colorSet));
+	drawables[0].addMaterial(colorSetMat);
 	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
 	
 
 	//Trackpad frame
 	ControllerReferenceFilepaths controllerPath(controllerType);
-//	const char* filePathTrackpadFrame = (controllerType == VRControllerType::VIVE)
-//		? "models/controllerTrackpadFrame.obj" : "models/OculusTouchTrackpadFrameLeft.obj";
 	MeshInfoLoader trackpadFrameObj(controllerPath.trackpadFrame);
 	vec3 trackpadCenter(trackpadFrameObj.vertices[0]);
 	vec3 trackpadBx(trackpadFrameObj.vertices[1] - trackpadCenter);
@@ -984,7 +1036,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		trackpadBy*COLOR_WHEEL_SCALE, 
 		COLOR_NUM, 10);
 	colorWheel.addMaterial(new ShadedMat(0.7f, 0.3f, 0.3f, 10.f));
-	colorWheel.addMaterial(new ColorSetMat(colorSet));
+	colorWheel.addMaterial(colorSetMat);
 
 	const float TRACKPAD_LIGHT_DIST = 0.5f;
 
@@ -996,7 +1048,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	unsigned char drawColor = 1;
 	float sphereTransparency = 1.0f;
 	float drawRadius = 0.05f;
-	auto sphereGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/icosphere.obj"));
+	auto sphereGeom = shared_ptr<MeshGeometryType>(objToElementGeometry("models/icosphere.obj"));
 	auto sphereColorMat = make_shared<ColorMat>(colorSet[drawColor]);
 	Drawable drawingSphere[2];
 	for (int i = 0; i < 2; i++) {
@@ -1062,8 +1114,9 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !updateMapButtonPressed) {
 			updateMapButtonPressed = true;
 			colorSet = colorMapLoader("default.cmp");
-			dynamic_pointer_cast<ColorSetMat>(drawables[0].getMaterial(ColorSetMat::id))->colors = colorSet;
-			dynamic_pointer_cast<ColorSetMat>(colorWheel.getMaterial(ColorSetMat::id))->colors = colorSet;
+			colorSetMat->colors = colorSet;
+			//dynamic_pointer_cast<ColorSetMat>(drawables[0].getMaterial(ColorSetMat::id))->colors = colorSet;
+			//dynamic_pointer_cast<ColorSetMat>(colorWheel.getMaterial(ColorSetMat::id))->colors = colorSet;
 		}
 		else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE)
 			updateMapButtonPressed = false;
@@ -1102,6 +1155,14 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 				drawColor = axisToIndex(axis, COLOR_NUM);
 				sphereColorMat->color = vec4(colorSet[drawColor], sphereTransparency);
 				colorWheel.selectColor(drawColor);
+				
+				static bool togglePressed = false;
+				if (controllers[VRControllerHand::LEFT].input.getActivation(TOGGLE_VISIBILITY_CONTROL) && !togglePressed) {
+					colorSetMat->visibility.toggle(drawColor);
+					togglePressed = true;
+				}
+				else if (!togglePressed)
+					togglePressed = false;
 			}
 		}
 		else {
@@ -1119,7 +1180,6 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			+ (length(controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL)) > MIN_TILT)
 			+ (!controllerHasTrackpad)) >= 2)
 		{
-			
 			vec2 axis = controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL);
 			float currentAngle = atan2(axis.y, axis.x);
 
@@ -1442,9 +1502,31 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 	vr::VR_Shutdown();
 }
 
+template<typename... Args>
+std::string stringFormat(const char* string, Args... args) {
+	char buffer[200];
+	sprintf(buffer, string, args...);
+	return std::string(buffer);
+}
+
+void pushDebugGroup(std::string name) {
+	glPushDebugGroup(GL_NONE, 0, name.size(), name.c_str());
+}
+
 void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* savedFile, int sampleNumber) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
+
+	GLint flags; 
+	glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+	if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+	{
+		printf(">>In debugging mode\n");
+		glEnable(GL_DEBUG_OUTPUT);
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+		glDebugMessageCallback(glDebugOutput, nullptr);
+		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+	}
 
 	SimpleTexManager tm;
 	IndexedViewportVRContext vrContext(&tm);
@@ -1487,8 +1569,6 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		loadVolume(loadedFile, &minfo, &colors, &objName);
 		savedFilename = savedFile;
 	}
-
-	Sphere boundingSphere = getBoundingSphere(minfo.vertices);
 
 	printf("Number of vertices: %d\nNumber of faces: %d\n", minfo.vertices.size(), minfo.indices.size() / 3);
 
@@ -1543,6 +1623,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 	Viewport rightEyeView(window_width / 2, window_height, window_width / 2);
 
 	//Parse tracked devices
+	printf("Controller creation\n");
 	VRDeviceManager<VRCameraController, VRController> devices(vrContext.vrSystem, &tm);
 	VRController *controllers = devices.controllers;
 	VRControllerType controllerType = controllers[0].type;
@@ -1553,8 +1634,9 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllerType == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
 
 	//Squares for left and right views
+	printf("Texture plane created");
 	Drawable windowSquare(
-		new SimpleTexGeometry(points, coords, 6, GL_TRIANGLES),
+		new TextureGeometry(GL_TRIANGLES, points, coords, 6),
 		new TextureMat(vrContext.getTexture()));
 
 	SimpleTexShader texShader;
@@ -1580,7 +1662,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
+	//glCullFace(GL_BACK);
 
 	/////////////////////////	
 	// STREAM GEOMETRY SETUP
@@ -1601,6 +1683,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 	colorSet = colorMapLoader("default.cmp");
 
 	int COLOR_NUM = colorSet.size();
+	auto colorSetMat = make<ColorSetMat>(colorSet);
 
 	VRColorShaderBin colorShader(colorSet.size());
 
@@ -1608,24 +1691,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		POSITION = 0, NORMAL, COLOR	//Attribute indices
 	};
 
-	//TEST -- Ground plane
-	unsigned int groundIndices[6] = { 0, 2, 1, 4, 3, 5 };
-	unsigned char groundColors[6] = { 0, 0, 0, 0, 0, 0 };
-	auto groundGeom = make_shared<StreamGeometry<vec3, vec3, unsigned char>>(6, vector<char>{ false, false, false });
-	groundGeom->loadElementArray(6, GL_STATIC_DRAW, groundIndices);
-	groundGeom->loadBuffer<POSITION>(points);
-	groundGeom->loadBuffer<NORMAL>(normals);
-	groundGeom->loadBuffer<COLOR>(groundColors);
-	Drawable groundPlane(
-		groundGeom,
-		make_shared<ColorSetMat>(colorSet)
-	);
-	groundPlane.addMaterial(new ShadedMat(0.3f, 0.4f, 0.4f, 50.f));
-	groundPlane.orientation = glm::angleAxis(PI / 2.f, vec3(1, 0, 0));
-	groundPlane.setScale(vec3(100.f));
-
-	//END TEST -- Ground Plane
-
+	printf("Stream geometry\n");
 	auto streamGeometry = make_shared<StreamGeometry<vec3, vec3, unsigned char>>(minfo.vertices.size(),
 		std::vector<char>({ false, false, true }));
 	streamGeometry->loadElementArray(minfo.indices.size(), GL_STATIC_DRAW, minfo.indices.data());
@@ -1633,15 +1699,14 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 	streamGeometry->loadBuffer<NORMAL>(minfo.normals.data());
 	streamGeometry->loadBuffer<COLOR>(colors.data());
 
+	printf("Create drawable\n");
 	drawables.push_back(Drawable(streamGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
-	drawables[0].addMaterial(new ColorSetMat(colorSet));
+	drawables[0].addMaterial(colorSetMat);		//new ColorSetMat(colorSet));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
 
 
 	//Trackpad frame
 	ControllerReferenceFilepaths controllerPath(controllerType);
-	//	const char* filePathTrackpadFrame = (controllerType == VRControllerType::VIVE)
-	//		? "models/controllerTrackpadFrame.obj" : "models/OculusTouchTrackpadFrameLeft.obj";
 	MeshInfoLoader trackpadFrameObj(controllerPath.trackpadFrame);
 	vec3 trackpadCenter(trackpadFrameObj.vertices[0]);
 	vec3 trackpadBx(trackpadFrameObj.vertices[1] - trackpadCenter);
@@ -1659,13 +1724,14 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 	vec3 grabPositionModelspace = grabPositionObj.vertices[0];
 
 	//Trackpad geometry
+	printf("Color wheel drawable\n");
 	ColorWheel colorWheel(
 		trackpadCenter + trackpadNormal * DIST_FROM_TPAD,
 		trackpadBx*COLOR_WHEEL_SCALE,
 		trackpadBy*COLOR_WHEEL_SCALE,
 		COLOR_NUM, 10);
 	colorWheel.addMaterial(new ShadedMat(0.7f, 0.3f, 0.3f, 10.f));
-	colorWheel.addMaterial(new ColorSetMat(colorSet));
+	colorWheel.addMaterial(colorSetMat);	//new ColorSetMat(colorSet));
 
 	const float TRACKPAD_LIGHT_DIST = 0.5f;
 
@@ -1674,10 +1740,11 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 	UndoStack<unsigned char> undoStack(colors.data(), colors.size(), MAX_UNDO);
 
 	//Drawing sphere
+	printf("Brush drawable\n");
 	unsigned char drawColor = 1;
 	float sphereTransparency = 1.0f;
 	float drawRadius = 0.05f;
-	auto sphereGeom = shared_ptr<ElementGeometry>(objToElementGeometry("models/icosphere.obj"));
+	auto sphereGeom = shared_ptr<MeshGeometryType>(objToElementGeometry("models/icosphere.obj"));
 	auto sphereColorMat = make_shared<ColorMat>(colorSet[drawColor]);
 	Drawable drawingSphere[2];
 	for (int i = 0; i < 2; i++) {
@@ -1718,6 +1785,9 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		
+		pushDebugGroup("Client frame");
 
 		if (gWindowWidth != window_width || gWindowHeight != window_height) {
 			window_width = gWindowWidth;
@@ -1733,18 +1803,17 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		displaySphere[0] = false;
 		displaySphere[1] = false;
 
-		devices.updatePose();
-		devices.updateState(vrContext.vrSystem);
-
 		vec2 trackpadDir[4] = { vec2(0, 1), vec2(1, 0), vec2(0, -1), vec2(-1, 0) };
 
+		pushDebugGroup("Query input");
 		//Update colormap
 		static bool updateMapButtonPressed = false;
 		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !updateMapButtonPressed) {
 			updateMapButtonPressed = true;
 			colorSet = colorMapLoader("default.cmp");
-			dynamic_pointer_cast<ColorSetMat>(drawables[0].getMaterial(ColorSetMat::id))->colors = colorSet;
-			dynamic_pointer_cast<ColorSetMat>(colorWheel.getMaterial(ColorSetMat::id))->colors = colorSet;
+			colorSetMat->colors = colorSet;
+			//dynamic_pointer_cast<ColorSetMat>(drawables[0].getMaterial(ColorSetMat::id))->colors = colorSet;
+			//dynamic_pointer_cast<ColorSetMat>(colorWheel.getMaterial(ColorSetMat::id))->colors = colorSet;
 		}
 		else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE)
 			updateMapButtonPressed = false;
@@ -1783,6 +1852,14 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 				drawColor = axisToIndex(axis, COLOR_NUM);
 				sphereColorMat->color = vec4(colorSet[drawColor], sphereTransparency);
 				colorWheel.selectColor(drawColor);
+
+				static bool togglePressed = false;
+				if (controllers[VRControllerHand::LEFT].input.getActivation(TOGGLE_VISIBILITY_CONTROL) && !togglePressed) {
+					colorSetMat->visibility.toggle(drawColor);
+					togglePressed = true;
+				}
+				else if (!controllers[VRControllerHand::LEFT].input.getActivation(TOGGLE_VISIBILITY_CONTROL))
+					togglePressed = false;
 			}
 		}
 		else {
@@ -1838,6 +1915,8 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 			released_TrackpadRadius = true;
 		}
 
+		glPopDebugGroup();	//Query input
+
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
 			drawables[i].setOrientation(sceneTransform.getOrientationQuat());
@@ -1845,6 +1924,8 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 			drawables[i].setScale(vec3(sceneTransform.scale));
 		}
 
+		double paintingStartTime = glfwGetTime();
+		pushDebugGroup("Search neighbours");	
 		//SEARCH KDTREE
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < 2; i++) {
@@ -1875,14 +1956,27 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 				paintingButtonPressed == false;
 			}
 		}
+		glPopDebugGroup();		//Search neighbours
+		pushDebugGroup("Write colors");
+		///*
 		for (int i = 0; i < neighbours.size(); i++) {
 			streamGeometry->modify<COLOR>(neighbours[i].index, drawColor);
 			undoStack.modify(neighbours[i].index, drawColor);
 		}
-
 		streamGeometry->dump<COLOR>();
 		streamGeometry->buffManager.endWrite();
 
+		//*/
+		/*
+		for (int i = 0; i < neighbours.size(); i++) {
+			//streamGeometry->modify<COLOR>(neighbours[i].index, drawColor);
+			colors[i] = drawColor;
+			undoStack.modify(neighbours[i].index, drawColor);
+		}
+
+		streamGeometry->loadBuffer<COLOR>(colors.data());
+		//*/
+		glPopDebugGroup();	//Write colors
 		//Update color wheel position
 		colorWheel.position = controllers[0].position;
 		colorWheel.orientation = controllers[0].orientation;
@@ -1891,6 +1985,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
 		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
 
+		pushDebugGroup("Distance to convex hull");
 		//Update bounding sphere on model and find fog bounds
 		float closestPoint = std::numeric_limits<float>::max();
 		float furthestPoint = -std::numeric_limits<float>::max();
@@ -1906,6 +2001,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 
 		float fogDistance = distPair.first*sceneTransform.scale;
 		float fogScale = (distPair.second - distPair.first)*0.5f*sceneTransform.scale;
+		glPopDebugGroup();		//Distance to convex hull
 
 		//Setup screenshot
 		//Projection matrix for screenshots
@@ -1961,6 +2057,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		///////////
 		glLineWidth(10.f);
 		glEnable(GL_MULTISAMPLE);
+		glDisable(GL_CULL_FACE);
 		glClearColor(0.f, 0.f, 0.f, 0.f);
 
 		fbDraw.use();
@@ -2001,7 +2098,17 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		texShader.draw(cam, windowSquare);
 
 		//Draw headset
+		pushDebugGroup("Submit frame");
 		vrContext.submitFrame(fbDraw);
+		//vr::VRCompositor()->PostPresentHandoff();
+		glPopDebugGroup();	//Submit frame
+
+		pushDebugGroup("Update pose");
+		devices.updatePose();
+		glPopDebugGroup();
+		pushDebugGroup("Update state");
+		devices.updateState(vrContext.vrSystem);
+		glPopDebugGroup();
 
 		glEnable(GL_BLEND);
 
@@ -2079,6 +2186,8 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		else if (pressed) {
 			redoButtonPressed = true;
 		}
+
+		glPopDebugGroup();	//Start client frame
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();

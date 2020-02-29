@@ -33,7 +33,7 @@ void BubbleShaderBin::draw(const Camera& cam_left, const Camera& cam_right, Draw
 	glUniformMatrix4fv(uniformLocations[M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
 	glUniform3fv(uniformLocations[VIEW_LOCATION], 2, &camera_pos[0][0]);
 
-	obj.getGeometry().drawGeometry();
+	obj.getGeometry().drawGeometry(programID);
 	glUseProgram(0);
 }		
 
@@ -82,7 +82,7 @@ void BubbleShader::draw(const Camera &cam, Drawable &obj) {
 	loadUniforms(cam.getProjectionMatrix()*cam.getCameraMatrix(), obj.getTransform(), cam.getPosition());
 	obj.loadUniforms(ColorMat::id, &uniformLocations[0]);
 
-	obj.getGeometry().drawGeometry();
+	obj.getGeometry().drawGeometry(programID);
 	glUseProgram(0);
 }
 

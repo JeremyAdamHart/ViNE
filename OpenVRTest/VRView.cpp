@@ -65,6 +65,8 @@ bool saveVRViewToFile(const char* filename, VRView* vrView) {
 	fprintf(f, "orientation %f %f %f %f\n", q.x, q.y, q.z, q.w);
 	fprintf(f, "scale %f\n", vrView->scale);
 
+	printf("Saved view to %s\n", filename);
+
 	fclose(f);
 	return true;
 }
