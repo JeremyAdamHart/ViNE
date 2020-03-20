@@ -375,3 +375,73 @@ void ColorWheel::generateColorWheelGeometry() {
 
 	setGeometryContainer(geometry);
 }
+
+using namespace renderlib;
+
+struct uniform {
+	enum {
+		VP_MATRIX_LOCATION = ShadedMat::COUNT + ColorSetMat::COUNT,
+		M_MATRIX_LOCATION,
+		VIEW_LOCATION,
+		LIGHT_POS_LOCATION,
+		CENTER,
+		COUNT
+	};
+};
+
+vector<pair<GLenum, string>> ColorWheelShaderBin::shaders() {
+	return {
+		{ GL_VERTEX_SHADER, "shaders/binColorWheel.vert" },
+		{ GL_FRAGMENT_SHADER, "shaders/binColorWheel.frag" }
+	};
+}
+
+ColorWheelShaderBin::ColorWheelShaderBin(int maxColorNum)
+	:renderlib::ShaderT<renderlib::ShadedMat, renderlib::ColorSetMat>(shaders(),
+		{ {GL_VERTEX_SHADER, std::string("#define MAX_COLOR_NUM " + to_string(maxColorNum) + "\n") } },
+		{ "ka", "ks", "kd", "alpha",
+		"colors", "visibility", "view_projection_matrix", "model_matrix", "viewPosition", "lightPos", "center"}) {}
+
+void ColorWheelShaderBin::draw(const Camera &cam_left, const Camera &cam_right, glm::vec3 lightPos, glm::vec3 center, Drawable &obj)
+{
+	glUseProgram(programID);
+
+	mat4 vp_matrix[2] = {
+			cam_left.getProjectionMatrix()*cam_left.getCameraMatrix(),
+			cam_right.getProjectionMatrix()*cam_right.getCameraMatrix() };
+
+	mat4 m_matrix = obj.getTransform();
+	vec3 camera_pos[2] = { cam_left.getPosition(), cam_right.getPosition() };
+
+	loadMaterialUniforms(obj);
+	glUniformMatrix4fv(uniformLocations[uniform::VP_MATRIX_LOCATION], 2, false, &vp_matrix[0][0][0]);
+	glUniformMatrix4fv(uniformLocations[uniform::M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
+	glUniform3fv(uniformLocations[uniform::VIEW_LOCATION], 2, &camera_pos[0][0]);
+	glUniform3f(uniformLocations[uniform::LIGHT_POS_LOCATION], lightPos.x, lightPos.y, lightPos.z);
+	glUniform3f(uniformLocations[uniform::CENTER], center.x, center.y, center.z);
+
+	obj.getGeometry().drawGeometry();
+	glUseProgram(0);
+}
+
+void ColorWheelShaderBin::drawNew(const Camera &cam_left, const Camera &cam_right, glm::vec3 lightPos, glm::vec3 center, Drawable &obj)
+{
+	glUseProgram(programID);
+
+	mat4 vp_matrix[2] = {
+			cam_left.getProjectionMatrix()*cam_left.getCameraMatrix(),
+			cam_right.getProjectionMatrix()*cam_right.getCameraMatrix() };
+
+	mat4 m_matrix = obj.getTransform();
+	vec3 camera_pos[2] = { cam_left.getPosition(), cam_right.getPosition() };
+
+	loadMaterialUniforms(obj);
+	glUniformMatrix4fv(uniformLocations[uniform::VP_MATRIX_LOCATION], 2, false, &vp_matrix[0][0][0]);
+	glUniformMatrix4fv(uniformLocations[uniform::M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
+	glUniform3fv(uniformLocations[uniform::VIEW_LOCATION], 2, &camera_pos[0][0]);
+	glUniform3f(uniformLocations[uniform::LIGHT_POS_LOCATION], lightPos.x, lightPos.y, lightPos.z);
+	glUniform3f(uniformLocations[uniform::CENTER], center.x, center.y, center.z);
+
+	obj.getGeometry().drawGeometry(programID);
+	glUseProgram(0);
+}

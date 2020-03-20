@@ -38,8 +38,11 @@ int main(int argc, char** argv)
 	switch (argc) {
 	case 1:
 		//Change to ricco
-		//loadFilename = "untrackedmodels/dragon.ply";
-		loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
+		//loadFilename = "saved/stitchedslicesBlueTraced.clr";
+		loadFilename = "untrackedmodels/dragon.ply";
+		//loadFilename = "saved/stitchedslices1_3000x3000x982_gaussian-1.5_Iso-21850.clr";
+		//loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
+		//loadFilename = "saved/Helianthus.clr";
 		saveFilename = "saved/default.clr";
 		break;
 	case 2:
@@ -56,5 +59,5 @@ int main(int argc, char** argv)
 		multisampling = std::stoi(argv[3]);
 	}
 
-	wm.paintingLoopIndexed(loadFilename, saveFilename, multisampling);
+	wm.paintingLoopIndexedMT(loadFilename, saveFilename, multisampling);
 }

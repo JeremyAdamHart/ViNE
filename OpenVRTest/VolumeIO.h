@@ -4,7 +4,7 @@
 #include <vector>
 #include "MeshInfoLoader.h"
 
-bool saveVolume(std::string saveFileName, std::string objName, unsigned char* colors, int pointNum);
+bool saveVolume(std::string saveFileName, std::string objName, const unsigned char* colors, int pointNum);
 bool loadVolume(std::string saveFileName, renderlib::MeshInfoLoader* minfo, std::vector<unsigned char>* colors, std::string* objName);
 
 std::vector<glm::vec3> colorMapLoader(std::string colorFileName);
@@ -17,5 +17,5 @@ std::string getFilename(std::string filepath);
 std::string findFilenameVariation(std::string filepath);
 std::string createPLYWithColors(std::string filename,
 	unsigned int* faces, unsigned int faceNum,
-	glm::vec3* positions, glm::vec3* normals, unsigned char* colors,
+	glm::vec3* positions, glm::vec3* normals, const unsigned char* colors,
 	glm::vec3* colorMap, unsigned int pointNum, unsigned char removedColor);

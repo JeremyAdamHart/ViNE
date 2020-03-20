@@ -5,6 +5,7 @@
 #include <utility>
 #include <stdexcept>
 #include <algorithm>
+#include <Bitmask.h>
 
 template<typename T>
 class RingStack {
@@ -84,6 +85,20 @@ public:
 	UndoStack(T *data, size_t size, size_t maxUndo) 
 		:data(data), size(size), previousStates(maxUndo), lastStateUnfinished(false){}
 
+	int lowestIndex() { 
+		if (previousStates.size())
+			return getLastState().begin()->first;
+		else
+			return -1;
+	}
+	int highestIndex() {
+		if (previousStates.size() > 0 && getLastState().size() > 0)
+			return getLastState().rbegin()->first;
+		else
+			return -1;
+	}
+
+
 	void modify(size_t element, T value) {
 		try {
 			//Store new and old values until propagated with propagateLastState()
@@ -91,6 +106,21 @@ public:
 		} catch (out_of_range) {
 			printf("UndoStack::modify -- Out of range exception\n");
 		}
+	}
+
+	void modify(size_t element, T value, Bitmask mask) {
+		try {
+			//Store new and old values until propagated with propagateLastState()
+			if(!mask.test(data[element]))
+				previousStates.last()[element] = WriteInfo<T>(data[element], value);
+		}
+		catch (out_of_range) {
+			printf("UndoStack::modify -- Out of range exception\n");
+		}
+	}
+
+	const std::map<size_t, WriteInfo<T>>& getLastState() const {
+		return previousStates.last();
 	}
 
 	void startNewState() {
@@ -133,3 +163,63 @@ public:
 	}
 
 };
+
+
+template<typename T>
+class UndoStackRef {
+	size_t size;
+
+	RingStack<std::map<size_t, WriteInfo<T>>> previousStates;		//Shows changes required to return to previous state
+	std::vector<std::map<size_t, WriteInfo<T>>> redoStates;
+public:
+	UndoStackRef(size_t size, size_t maxUndo)
+		:size(size), previousStates(maxUndo){}
+
+	void modify(size_t element, T value, T oldValue) {
+		try {
+			//Store new and old values until propagated with propagateLastState()
+			previousStates.last()[element] = WriteInfo<T>(oldValue, value);
+		}
+		catch (out_of_range) {
+			printf("UndoStack::modify -- Out of range exception\n");
+		}
+	}
+
+	void startNewState() {
+		redoStates.clear();
+		if (previousStates.size() == 0 || previousStates.last().size() > 0) {
+			previousStates.push(map<size_t, WriteInfo<T>>());
+		}
+	}
+
+	void undo(std::map<size_t, T>* changes) {
+		if (previousStates.size() > 0 && previousStates.last().size() == 0) {
+			previousStates.pop();
+			lastStateUnfinished = false;
+		}
+		if (previousStates.size() > 0 && previousStates.last().size() > 0) {
+			if (lastStateUnfinished)
+				propagateLastState();
+			//Build redo information and apply undo
+			redoStates.push_back(previousStates.last());
+			for (const auto &it : previousStates.last()) {
+				data[it.first] = it.second.oldValue;
+				(*changes)[it.first] = it.second.oldValue;
+			}
+			previousStates.pop();
+		}
+	}
+	void redo(std::map<size_t, T>* changes) {
+		if (redoStates.size() > 0) {
+			previousStates.push(redoStates.back());
+			for (const auto &it : redoStates.back()) {
+				//previousStates.last()[it.first] = data[it.first];
+				data[it.first] = it.second.newValue;
+				(*changes)[it.first] = it.second.newValue;
+			}
+			lastStateUnfinished = false;
+			redoStates.pop_back();
+		}
+	}
+};
+

@@ -78,6 +78,31 @@ void VRColorShaderBin::draw(const Camera &cam_left, const Camera &cam_right, glm
 	glUseProgram(0);
 }
 
+void VRColorShaderBin::drawNew(const Camera &cam_left, const Camera &cam_right, glm::vec3 lightPos,
+	float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj)
+{
+	glUseProgram(programID);
+
+	mat4 vp_matrix[2] = {
+			cam_left.getProjectionMatrix()*cam_left.getCameraMatrix(),
+			cam_right.getProjectionMatrix()*cam_right.getCameraMatrix() };
+
+	mat4 m_matrix = obj.getTransform();
+	vec3 camera_pos[2] = { cam_left.getPosition(), cam_right.getPosition() };
+
+	loadMaterialUniforms(obj);
+	glUniformMatrix4fv(uniformLocations[uniform::VP_MATRIX_LOCATION], 2, false, &vp_matrix[0][0][0]);
+	glUniformMatrix4fv(uniformLocations[uniform::M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
+	glUniform3fv(uniformLocations[uniform::VIEW_LOCATION], 2, &camera_pos[0][0]);
+	glUniform3f(uniformLocations[uniform::LIGHT_POS_LOCATION], lightPos.x, lightPos.y, lightPos.z);
+	glUniform1f(uniformLocations[uniform::FOG_SCALE_LOCATION], fogScale);
+	glUniform1f(uniformLocations[uniform::FOG_DISTANCE_LOCATION], fogDistance);
+	glUniform3f(uniformLocations[uniform::FOG_COLOR_LOCATION], fogColor.x, fogColor.y, fogColor.z);
+	
+	obj.getGeometry().drawGeometry(programID);
+	glUseProgram(0);
+}
+
 //REST SHOULD BE DEPRECATED?
 
 static vector<pair<GLenum, string>> shaders{

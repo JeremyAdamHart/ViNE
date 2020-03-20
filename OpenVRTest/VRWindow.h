@@ -40,6 +40,7 @@ public:
 	void mainLoopNoAO();
 	void paintingLoop(const char* loadedFile, const char* savedFile, int sampleNumber=16);
 	void paintingLoopIndexed(const char* loadedFile, const char* savedFile, int sampleNumber=16);
+	void paintingLoopIndexedMT(const char* loadedFile, const char* savedFile, int sampleNumber = 16);
 };
 
 vr::IVRSystem *initVR();

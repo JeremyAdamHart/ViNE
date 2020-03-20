@@ -53,6 +53,7 @@ Debug/OpenVRTest.exe
 *.tlog
 *.log
 *.ilk
+*.nvact
 .vs
 OpenVRTest/Debug/*.obj
 OpenVRTest/Release/*.obj
