@@ -1,4 +1,4 @@
-#version 430
+#version 450
 #define M_PI 3.1415926535897932384626433832795
 
 // first output is mapped to the framebuffer's colour index by default
@@ -22,7 +22,7 @@ uniform float kd = 0.4;
 uniform float alpha = 5.0;
 uniform float ka = 0.3;
 
-float blinnPhongLighting(vec3 normal, vec3 position, vec3 viewPosition)
+float blinnPhongLighting(vec3 normal, vec3 position, vec3 viewPosition) 
 {
 	vec3 viewer = normalize(viewPosition - position);
 	vec3 light = normalize(lightPos - position);

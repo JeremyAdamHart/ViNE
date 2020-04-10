@@ -1,4 +1,4 @@
-#version 430
+#version 450
 #extension GL_NV_viewport_array2 : enable
 #extension GL_NV_stereo_view_rendering : enable
 

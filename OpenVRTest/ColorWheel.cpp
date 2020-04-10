@@ -75,7 +75,7 @@ void ColorWheel::thumbPos(vec2 pos) {
 	geom->dump<NORMAL>();
 
 	geom->buffManager.endWrite();
-
+	
 }
 
 void ColorWheel::selectColor(int color) {

@@ -38,8 +38,8 @@ int main(int argc, char** argv)
 	switch (argc) {
 	case 1:
 		//Change to ricco
-		//loadFilename = "saved/stitchedslicesBlueTraced.clr";
-		loadFilename = "untrackedmodels/dragon.ply";
+		loadFilename = "saved/stitchedslicesBlueTraced.clr";
+		//loadFilename = "untrackedmodels/dragon.ply";
 		//loadFilename = "saved/stitchedslices1_3000x3000x982_gaussian-1.5_Iso-21850.clr";
 		//loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
 		//loadFilename = "saved/Helianthus.clr";

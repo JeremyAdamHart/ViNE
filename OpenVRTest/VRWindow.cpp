@@ -136,6 +136,8 @@ void APIENTRY glDebugOutput(GLenum source,
 	const GLchar *message,
 	const void *userParam)
 {
+
+	if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
 	// ignore non-significant error/warning codes
 	//if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
 
@@ -1547,7 +1549,7 @@ std::string stringFormat(const char* string, Args... args) {
 }
 
 void pushDebugGroup(std::string name) {
-	glPushDebugGroup(GL_NONE, 0, name.size(), name.c_str());
+	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, name.size(), name.c_str());
 }
 
 void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* savedFile, int sampleNumber) {
@@ -2214,10 +2216,10 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 			redoButtonPressed = true;
 		}
 
-		glPopDebugGroup();	//Start client frame
+glPopDebugGroup();	//Start client frame
 
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+glfwSwapBuffers(window);
+glfwPollEvents();
 	}
 
 	glfwTerminate();
@@ -2226,9 +2228,9 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 
 
 
-struct StateInfo{
+struct StateInfo {
 	enum {
-		UNDO=0,
+		UNDO = 0,
 		REDO
 	};
 	std::vector<glm::vec3> controllerPositions;			//Only lists controllers with draw button pressed
@@ -2240,9 +2242,9 @@ struct StateInfo{
 	bool shouldClose;
 	Bitmask visibility;
 
-	StateInfo(size_t timestamp=0) :action(-1), timestamp(timestamp), shouldClose(false){}
+	StateInfo(size_t timestamp = 0) :action(-1), timestamp(timestamp), shouldClose(false) {}
 	StateInfo(std::vector<glm::vec3> controllerPositions, unsigned char drawColor, float scaledDrawRadius, size_t timestamp)
-		:controllerPositions(controllerPositions), action(-1), timestamp(timestamp), drawColor(drawColor), 
+		:controllerPositions(controllerPositions), action(-1), timestamp(timestamp), drawColor(drawColor),
 		scaledDrawRadius(scaledDrawRadius), shouldClose(false) {}
 	StateInfo(int action, size_t actionTimestamp, size_t timestamp) :action(action), timestamp(timestamp), shouldClose(false) {}
 	StateInfo(bool shouldClose) :shouldClose(shouldClose) {}
@@ -2260,8 +2262,8 @@ void paintingThreadFunc(std::vector<vec3>& positions, Resource<StateInfo, 3>::Re
 {
 	//Undo class
 	const size_t MAX_UNDO = 5;
-	std::vector<unsigned char> trueColors = *colors.getRead();
-	UndoStack<unsigned char> undoStack(trueColors.data(), trueColors.size(), MAX_UNDO);
+	//std::vector<unsigned char> trueColors = *colors.getRead();
+	UndoStackRef<unsigned char> undoStack(MAX_UNDO);
 
 	size_t lastHostTimestamp = 0;
 	size_t lastTimestamp = 0;
@@ -2277,6 +2279,11 @@ void paintingThreadFunc(std::vector<vec3>& positions, Resource<StateInfo, 3>::Re
 
 	//
 	bool isPainting = false;
+
+	//Point filtering
+	float lastRadius = 0.f;
+	std::vector<glm::vec3> lastPositions;		//Initial position well outside range
+	int lastColor = -1;
 
 	while (!programStopped) {
 		StateInfo currentState = *stateInfo.getRead();
@@ -2304,8 +2311,30 @@ void paintingThreadFunc(std::vector<vec3>& positions, Resource<StateInfo, 3>::Re
 				}
 				//if (currentState.controllerPositions.size() == 0) isPainting = false;
 
-				for (int i = 0; i < neighbours.size(); i++) {
-					undoStack.modify(neighbours[i].index, currentState.drawColor, currentState.visibility);
+				//----Filter out points colored in last stage----//
+
+				if (currentState.drawColor != lastColor) {
+					std::vector<IndexVec3> unfilteredNeighbours;
+					unfilteredNeighbours.swap(neighbours);
+					for (auto vi : unfilteredNeighbours) {
+						for (auto lastPosition : currentState.controllerPositions) {
+							glm::vec3 vecToLastPosition = vi.point - lastPosition;
+							if (dot(vecToLastPosition, vecToLastPosition) < lastRadius*lastRadius)
+								neighbours.push_back(vi);
+						}
+					}
+				}
+
+				lastRadius = currentState.scaledDrawRadius;
+				lastPositions = currentState.controllerPositions;
+				lastColor = currentState.drawColor;
+				//----Filter out points colored in last stage----//
+
+				{
+					auto colorRead = colors.getRead();
+					for (int i = 0; i < neighbours.size(); i++) {
+						undoStack.modify(neighbours[i].index, currentState.drawColor, colorRead->data(), currentState.visibility);
+					}
 				}
 				if (neighbours.size()) {
 					newChangedRange.begin = undoStack.lowestIndex();
@@ -2329,6 +2358,9 @@ void paintingThreadFunc(std::vector<vec3>& positions, Resource<StateInfo, 3>::Re
 						writeResource.data[iv.first] = iv.second.newValue;
 				}
 				isPainting = false;
+				lastColor = -1;
+				lastRadius = 0.f;
+				lastPositions = {};
 			}
 			//UNDO and REDO
 			if (currentState.action == StateInfo::UNDO || currentState.action == StateInfo::REDO) {
@@ -2345,7 +2377,7 @@ void paintingThreadFunc(std::vector<vec3>& positions, Resource<StateInfo, 3>::Re
 				}
 
 				newChangedRange.begin = 0;
-				newChangedRange.end = trueColors.size();
+				newChangedRange.end = colors.getRead()->size();
 			}
 
 			//changedRange
@@ -2361,6 +2393,149 @@ void paintingThreadFunc(std::vector<vec3>& positions, Resource<StateInfo, 3>::Re
 	
 }
 
+using MarchingCubesGeometry = PinnedGeometry<
+	attrib::Position,
+	attrib::Normal,
+	attrib::Pinned<attrib::ColorIndex>>;
+
+void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 3>::ReadOnly stateInfo,
+	Resource<MarchingCubesGeometry::AttributePointers, 3>* colors, Resource<ChangedRange, 3>& changedRange)
+{
+	//Undo class
+	const size_t MAX_UNDO = 5;
+	UndoStackRef<unsigned char> undoStack(MAX_UNDO);
+
+	size_t lastHostTimestamp = 0;
+	size_t lastTimestamp = 0;
+	bool programStopped = false;
+
+	//Build KD Tree
+	vector<IndexVec3> vertIndexPair;
+	for (int i = 0; i < positions.size(); i++) {
+		vertIndexPair.push_back(IndexVec3(i, positions[i]));
+	}
+	using namespace spatial;
+	build_kdTree_inplace<dimensions<IndexVec3>()>(vertIndexPair.begin(), vertIndexPair.end());
+
+	//
+	bool isPainting = false;
+
+	//Point filtering
+	float lastRadius = 0.f;
+	std::vector<glm::vec3> lastPositions;		//Initial position well outside range
+	int lastColor = -1;
+
+	undoStack.startNewState();
+
+	while (!programStopped) {
+		using namespace attrib;
+		StateInfo currentState = *stateInfo.getRead();
+		programStopped = currentState.shouldClose;
+		if (currentState.timestamp > lastHostTimestamp) {
+			printf("-----Start loop %d-----\n", currentState.timestamp);
+			lastHostTimestamp = currentState.timestamp;
+			//PAINTING
+			{
+				std::vector<IndexVec3> neighbours;
+				for (vec3 controller : currentState.controllerPositions) {
+					vec3 pos = controller;
+					float searchRadius = currentState.scaledDrawRadius;
+
+					if (!isPainting) {
+					//	undoStack.startNewState();
+						isPainting = true;
+					}
+
+					kdTree_findNeighbours<dimensions<IndexVec3>()>(
+						vertIndexPair.begin(), vertIndexPair.end(),
+						IndexVec3(-1, pos),
+						searchRadius*searchRadius,
+						neighbours);
+				}
+				//if (currentState.controllerPositions.size() == 0) isPainting = false;
+
+				//----Filter out points colored in last stage----//
+
+				if (currentState.drawColor != lastColor) {
+					std::vector<IndexVec3> unfilteredNeighbours;
+					unfilteredNeighbours.swap(neighbours);
+					for (auto vi : unfilteredNeighbours) {
+						for (auto lastPosition : currentState.controllerPositions) {
+							glm::vec3 vecToLastPosition = vi.point - lastPosition;
+							if (dot(vecToLastPosition, vecToLastPosition) < lastRadius*lastRadius)
+								neighbours.push_back(vi);
+						}
+					}
+				}
+
+				lastRadius = currentState.scaledDrawRadius;
+				lastPositions = currentState.controllerPositions;
+				lastColor = currentState.drawColor;
+				//----Filter out points colored in last stage----//
+
+				if(neighbours.size() > 0){
+					auto colorRead = colors->getRead();
+					for (int i = 0; i < neighbours.size(); i++) {
+						undoStack.modify(neighbours[i].index, 
+							currentState.drawColor, 
+							colorRead->get<Pinned<ColorIndex>>(), 
+							currentState.visibility);
+					}
+				}
+				auto& changeMap = undoStack.getLastState();
+				if(changeMap.size() > 0){
+					auto writeResource = colors->getWrite();
+					printf("Writing to %d\n", writeResource.id);
+					for (const auto& iv : changeMap)
+						writeResource->get<Pinned<ColorIndex>>()[iv.first] = iv.second.newValue;
+				}
+
+			}
+
+			//RELEASE
+			if (currentState.controllerPositions.size() == 0 && isPainting == true) {
+				auto& changeMap = undoStack.getLastState();
+				for (int i = 0; i < 3; i++) {
+					auto writeResource = colors->getWriteSpecific(i, std::chrono::microseconds(100));
+					for (const auto& iv : changeMap)
+						writeResource->get<Pinned<ColorIndex>>()[iv.first] = iv.second.newValue;
+				}
+				isPainting = false;
+				lastColor = -1;
+				lastRadius = 0.f;
+				lastPositions = {};
+				undoStack.startNewState();
+			}
+			//UNDO and REDO
+			if (currentState.action == StateInfo::UNDO || currentState.action == StateInfo::REDO) {
+				std::map<size_t, unsigned char> changeMap;
+				if (currentState.action == StateInfo::UNDO)
+					undoStack.undo(&changeMap);
+				else
+					undoStack.redo(&changeMap);
+
+				for (int i = 0; i < 3; i++) {
+					auto writeResource = colors->getWriteSpecific(i, std::chrono::microseconds(100));
+					for (const auto& iv : changeMap)
+						writeResource->get<Pinned<ColorIndex>>()[iv.first] = iv.second;
+				}
+
+				//newChangedRange.begin = 0;
+				//newChangedRange.end = 10;
+			}
+
+			//changedRange
+			lastTimestamp++;
+			printf("-----End loop-----\n");
+		}
+		else {
+			std::this_thread::sleep_for(std::chrono::microseconds(100));
+		}
+	}
+
+	printf("Drawing thread finished\n");
+}
+//*/
 void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* savedFile, int sampleNumber) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
@@ -2545,16 +2720,17 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		POSITION = 0, NORMAL, COLOR	//Attribute indices
 	};
 
-	auto mcGeometry = make<IndexGeometryUint<attrib::Position, attrib::Normal, attrib::ColorIndex>>();
+	//auto mcGeometry = make<IndexGeometryUint<attrib::Position, attrib::Normal, attrib::ColorIndex>>();
+	auto mcGeometry = make<MarchingCubesGeometry>(minfo.vertices.size());
 	mcGeometry->loadIndices(minfo.indices.data(), minfo.indices.size());
-	mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data(), minfo.vertices.size());
+	//mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data(), minfo.vertices.size());
+	mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data());
 
 	printf("Create drawable\n");
 	//drawables.push_back(Drawable(streamGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
 	drawables.push_back(Drawable(mcGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
 	drawables[0].addMaterial(colorSetMat);		//new ColorSetMat(colorSet));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
-
 
 	//Trackpad frame
 	ControllerReferenceFilepaths controllerPath(controllerType);
@@ -2624,10 +2800,15 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 	//Setup painting thread
 	Resource<StateInfo, 3> stateResource;
-	Resource<std::vector<unsigned char>, 3> colorResource(colors);
+	//Resource<std::vector<unsigned char>, 3> colorResource(colors);
 	Resource<ChangedRange, 3> rangeResource;
-	std::thread paintingThread = std::thread(paintingThreadFunc, 
-		std::ref(minfo.vertices), stateResource.createReader(), std::ref(colorResource), std::ref(rangeResource));
+	//std::thread paintingThread = std::thread(paintingThreadFunc, 
+	//	std::ref(minfo.vertices), stateResource.createReader(), std::ref(colorResource), std::ref(rangeResource));
+	std::thread paintingThread = std::thread(paintingThreadFuncPinned,
+		std::ref(minfo.vertices), 
+		stateResource.createReader(), 
+		&mcGeometry->pinnedData, 
+		std::ref(rangeResource));
 
 	size_t timestamp = 0;
 	size_t paintingTimestamp = 0;
@@ -2670,8 +2851,18 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		static bool saveColoredPLYButton = false;
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !saveColoredPLYButton) {
 			printf("Saving colored ply\n");
-			createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
-				colorResource.getRead().data.data(), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+			//createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
+			//	colorResource.getRead().data.data(), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+			createPLYWithColors(
+				"coloredModel.ply", 
+				minfo.indices.data(), 
+				minfo.indices.size() / 3, 
+				minfo.vertices.data(), 
+				minfo.normals.data(),
+				mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(), 
+				colorSet.data(), 
+				minfo.vertices.size(), 
+				colorSet.size() - 1);
 		}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
 			saveColoredPLYButton = false;
@@ -2764,6 +2955,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 		//Painting
 		StateInfo newStateInfo(timestamp);
+		printf("-------Client %d-------\n", timestamp);
 		pushDebugGroup("Search neighbours");
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < 2; i++) {
@@ -2815,13 +3007,14 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		glPopDebugGroup();		//Search neighbours
 		pushDebugGroup("Load colors");
 		//Upload updated colors
+		/*********** LOADBUFFER
 		{
 			auto newRange = rangeResource.getRead();
 			if(newRange.data.timestamp > paintingTimestamp && newRange.data.end > newRange.data.begin){
 				auto latestColorBuffer = colorResource.getRead();
 				mcGeometry->loadBuffer<attrib::ColorIndex>((unsigned char*)&latestColorBuffer.data[0]);
 			}
-		}
+		}*/
 
 		glPopDebugGroup();	//Load colors
 		//Update color wheel position
@@ -2922,6 +3115,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		else
 			fbDraw.use();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		checkGLErrors("Before bpTexShader");
 		for (int i = 0; i < 2; i++)
 			bpTexShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
@@ -2950,11 +3144,15 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		glDisable(GL_MULTISAMPLE);
 		glDisable(GL_BLEND);
 
+		checkGLErrors("Before draw window");
+
 		//Draw window
 		fbWindow.use();
 		//leftEyeView.use();
 		glClearColor(1.0, 1.0, 1.0, 0.0);
 		texShader.draw(cam, windowSquare);
+
+		checkGLErrors("Before submit");
 
 		//Draw headset
 		pushDebugGroup("Submit frame");
@@ -3013,13 +3211,23 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		static bool saveButtonPressed = false;
 		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !saveButtonPressed) {
 			//if (saveVolume(savedFilename.c_str(), objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
-			if (saveVolume(savedFilename.c_str(), objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+			//if (saveVolume(savedFilename.c_str(), objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+			if (saveVolume(savedFilename.c_str(), objName.c_str(),
+				mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
+				colors.size())) 
+			{
 				printf("Saved %s successfully\n", savedFilename.c_str());
+			}
 			else {
 				printf("Attempting fallback - Saving to fallback.clr...\n");
 				//if (saveVolume("fallback.clr", objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
-				if(saveVolume(savedFilename.c_str(), objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+				//if(saveVolume("fallback.clr", objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+				if (saveVolume("fallback.clr", objName.c_str(),
+					mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
+					colors.size()))
+				{
 					printf("Saved fallback.clr successfully\n");
+				}
 			}
 			saveButtonPressed = true;
 		}
