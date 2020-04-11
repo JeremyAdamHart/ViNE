@@ -44,6 +44,8 @@ using namespace std;
 
 #include "MultiThreadedResource.h"
 
+#include "ControllerMovement.h"
+
 //Screenshot
 #pragma warning(disable:4996)
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -574,7 +576,8 @@ enum : int {
 	SPHERE_DISPLAY_CONTROL,
 	SCREENSHOT_CONTROL,
 	TOGGLE_VISIBILITY_CONTROL,
-	SAVE_VIEW_CONTROL
+	SAVE_VIEW_CONTROL,
+	SAVE_DRAW_SEQUENCE
 };
 
 void setControllerBindingsOculusTouch(VRControllerInterface *input, VRControllerHand hand) {
@@ -614,7 +617,8 @@ void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand ha
 		input->assignTouch(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
 		input->assignTouch(SPHERE_SIZE_TOUCH_CONTROL, vr::k_EButton_SteamVR_Touchpad);
-		input->assignButton(SAVE_VIEW_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		//input->assignButton(SAVE_VIEW_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignButton(SAVE_DRAW_SEQUENCE, vr::k_EButton_SteamVR_Touchpad);
 	}
 }
 
@@ -2432,7 +2436,7 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 		StateInfo currentState = *stateInfo.getRead();
 		programStopped = currentState.shouldClose;
 		if (currentState.timestamp > lastHostTimestamp) {
-			printf("-----Start loop %d-----\n", currentState.timestamp);
+			//printf("-----Start loop %d-----\n", currentState.timestamp);
 			lastHostTimestamp = currentState.timestamp;
 			//PAINTING
 			{
@@ -2485,7 +2489,7 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 				auto& changeMap = undoStack.getLastState();
 				if(changeMap.size() > 0){
 					auto writeResource = colors->getWrite();
-					printf("Writing to %d\n", writeResource.id);
+					//printf("Writing to %d\n", writeResource.id);
 					for (const auto& iv : changeMap)
 						writeResource->get<Pinned<ColorIndex>>()[iv.first] = iv.second.newValue;
 				}
@@ -2526,7 +2530,7 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 
 			//changedRange
 			lastTimestamp++;
-			printf("-----End loop-----\n");
+			//printf("-----End loop-----\n");
 		}
 		else {
 			std::this_thread::sleep_for(std::chrono::microseconds(100));
@@ -2816,6 +2820,9 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 	//Set initial controler state
 	devices.updateState(vrContext.vrSystem);
 
+	std::vector<StateAtDraw> stateAtDraw;
+	std::vector<StateAtDraw> replayState;
+
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -2946,6 +2953,38 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 		glPopDebugGroup();	//Query input
 
+		/////////////////
+		// Replay state
+		////////////////
+		if (replayState.size() > 0) {
+			sceneTransform.orientation = replayState.back().modelOrientation;
+			sceneTransform.position = replayState.back().modelPosition;
+			sceneTransform.scale = replayState.back().modelScale;
+
+			//Force controller inputs
+			controllers[0].setPosition(replayState.back().controllerPosition[0]);
+			controllers[0].setOrientation(replayState.back().controllerOrientation[0]);
+			controllers[0].input.setActivation(
+				SPHERE_DISPLAY_CONTROL, replayState.back().controllerPainting[0]);
+			controllers[0].input.setScalar(
+				PAINT_CONTROL, (replayState.back().controllerPainting[0]) ? 1.f : 0.f);
+
+			controllers[1].input.setActivation(
+				SPHERE_DISPLAY_CONTROL, replayState.back().controllerPainting[1]);
+			controllers[1].input.setScalar(
+				PAINT_CONTROL, (replayState.back().controllerPainting[1]) ? 1.f : 0.f);
+			controllers[1].setPosition(replayState.back().controllerPosition[1]);
+			controllers[1].setOrientation(replayState.back().controllerOrientation[1]);
+
+			drawColor = replayState.back().drawColor;
+			drawRadius = replayState.back().brushRadius;
+
+			devices.hmd.leftEye.setCameraMatrix(replayState.back().leftCamera);
+			devices.hmd.rightEye.setCameraMatrix(replayState.back().rightCamera);
+
+			replayState.pop_back();
+		}
+		
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
 			drawables[i].setOrientation(sceneTransform.getOrientationQuat());
@@ -2955,7 +2994,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 		//Painting
 		StateInfo newStateInfo(timestamp);
-		printf("-------Client %d-------\n", timestamp);
+		//printf("-------Client %d-------\n", timestamp);
 		pushDebugGroup("Search neighbours");
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < 2; i++) {
@@ -2964,20 +3003,15 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				
-				if (controllers[i].input.getScalar(PAINT_CONTROL) > 0.95f) {
+				paintingButtonPressed[i] = 
+					controllers[i].input.getScalar(PAINT_CONTROL) > 0.95f;
+				if (paintingButtonPressed[i]) {
 					newStateInfo.controllerPositions.push_back(pos);
 					newStateInfo.scaledDrawRadius = drawRadius / sceneTransform.scale;
 					newStateInfo.drawColor = drawColor;
-					paintingButtonPressed[i] = true;
-				}
-				else {
-					paintingButtonPressed[i] = false;
 				}
 
 				displaySphere[i] = true;		//TODO get rid of?
-			}
-			else {
-				paintingButtonPressed == false;
 			}
 		}
 
@@ -3043,6 +3077,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		float fogScale = (distPair.second - distPair.first)*0.5f*sceneTransform.scale;
 		glPopDebugGroup();		//Distance to convex hull
 
+
+
 		//Setup screenshot
 		//Projection matrix for screenshots
 		float aspectRatio = float(SCREENSHOT_WIDTH) / float(SCREENSHOT_HEIGHT);
@@ -3099,6 +3135,64 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		}
 		else if (!keyPressed && loadViewPressed)
 			loadViewPressed = false;
+
+		////////////////////////
+		// Save/load draw sequence
+		////////////////////////
+		static bool savingState = false;
+		static bool saveStatePressed = false;
+		if (!saveStatePressed &&
+			controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_DRAW_SEQUENCE))
+		{
+			saveStatePressed = true;
+			savingState = !savingState;
+			if(!savingState)
+				saveControllerSequence(stateAtDraw, "DrawSequence.seq");
+		}
+		else if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_DRAW_SEQUENCE))
+			saveStatePressed = false;
+
+		if (savingState) 
+		{
+			stateAtDraw.push_back(StateAtDraw());
+			stateAtDraw.back().leftCamera = devices.hmd.leftEye.getCameraMatrix();
+			stateAtDraw.back().rightCamera = devices.hmd.rightEye.getCameraMatrix();
+		
+			stateAtDraw.back().brushRadius = drawRadius;
+			stateAtDraw.back().drawColor = drawColor;
+
+			stateAtDraw.back().modelPosition = drawables[0].getPos();
+			stateAtDraw.back().modelOrientation = drawables[0].getOrientationQuat();
+			stateAtDraw.back().modelScale = sceneTransform.scale;
+
+			stateAtDraw.back().controllerPosition[0] = controllers[0].getPos();
+			stateAtDraw.back().controllerOrientation[0] = controllers[0].getOrientationQuat();
+			stateAtDraw.back().controllerPainting[0] = paintingButtonPressed[0];
+
+			stateAtDraw.back().controllerPosition[1] = controllers[1].getPos();
+			stateAtDraw.back().controllerOrientation[1] = controllers[1].getOrientationQuat();
+			stateAtDraw.back().controllerPainting[1] = paintingButtonPressed[1];
+			
+			//stateAtDraw.back().modelTransform = drawables[0].getTransform();
+			//stateAtDraw.back().controller[0] = controllers[0].getTransform();
+			//stateAtDraw.back().controller[1] = controllers[1].getTransform();
+			savingState = true;
+		}
+
+		//replayState.pop_back();
+		static bool loadStatePressed = false;
+		if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !loadStatePressed) {
+			replayState = loadControllerSequence("DrawSequence.seq");
+			std::reverse(replayState.begin(), replayState.end());
+			loadStatePressed = true;
+
+			pushDebugGroup("Start replay");
+			std::this_thread::sleep_for(std::chrono::milliseconds(40));
+			glPopDebugGroup();
+
+		}
+		else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
+			loadStatePressed = false;
 
 		////////////
 		// DRAWING

@@ -71,5 +71,8 @@
     <ClInclude Include="BlinnPhongShaderVR.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ControllerMovement.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

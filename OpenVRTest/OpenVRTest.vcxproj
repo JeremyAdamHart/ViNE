@@ -183,6 +183,7 @@
     <ClInclude Include="..\headers\ConvexHull.h" />
     <ClInclude Include="BlinnPhongShaderVR.h" />
     <ClInclude Include="BubbleShader.h" />
+    <ClInclude Include="ControllerMovement.h" />
     <ClInclude Include="VRColorShader.h" />
     <ClInclude Include="ColorWheel.h" />
     <ClInclude Include="kd_tree.h" />
