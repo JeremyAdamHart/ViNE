@@ -20,6 +20,7 @@ class VRColorShaderBin : public ShaderT<ShadedMat, ColorSetMat> {
 	 
 public:
 	VRColorShaderBin(int maxColorNum);
+	VRColorShaderBin(int maxColorNum, std::vector<pair<GLenum, string>> newShaders);
 	void draw(const Camera &leftCam, const Camera &rightCam, glm::vec3 lightPos,
 		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
 	void drawNew(const Camera &leftCam, const Camera &rightCam, glm::vec3 lightPos,
@@ -45,5 +46,7 @@ public:
 		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
 	void draw(const Camera &cam, const Scene &scene);
 };
+
+
 
 }

@@ -2804,7 +2804,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 	//Setup painting thread
 	Resource<StateInfo, 3> stateResource;
-	//Resource<std::vector<unsigned char>, 3> colorResource(colors);
+	Resource<std::vector<unsigned char>, 3> colorResource(colors);
 	Resource<ChangedRange, 3> rangeResource;
 	//std::thread paintingThread = std::thread(paintingThreadFunc, 
 	//	std::ref(minfo.vertices), stateResource.createReader(), std::ref(colorResource), std::ref(rangeResource));
@@ -2813,7 +2813,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		stateResource.createReader(), 
 		&mcGeometry->pinnedData, 
 		std::ref(rangeResource));
-
+	//*/
 	size_t timestamp = 0;
 	size_t paintingTimestamp = 0;
 
@@ -2870,6 +2870,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 				colorSet.data(), 
 				minfo.vertices.size(), 
 				colorSet.size() - 1);
+			//*/
 		}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
 			saveColoredPLYButton = false;
@@ -3046,9 +3047,11 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			auto newRange = rangeResource.getRead();
 			if(newRange.data.timestamp > paintingTimestamp && newRange.data.end > newRange.data.begin){
 				auto latestColorBuffer = colorResource.getRead();
-				mcGeometry->loadBuffer<attrib::ColorIndex>((unsigned char*)&latestColorBuffer.data[0]);
+				mcGeometry->loadSubBuffer<attrib::ColorIndex>(
+					(unsigned char*)&latestColorBuffer.data[newRange.data.begin], 
+					newRange.data.begin, newRange.data.end - newRange.data.begin);
 			}
-		}*/
+		}//*/
 
 		glPopDebugGroup();	//Load colors
 		//Update color wheel position
@@ -3226,10 +3229,13 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 				colorWheel);
 		}
 
+		glEnable(GL_BLEND);
+		glEnable(GL_CULL_FACE);
+
 		for (int i = 0; i < 2; i++) {
 			if (displaySphere[i]) {
-				glCullFace(GL_FRONT);
-				bubbleShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, drawingSphere[i]);
+				//glCullFace(GL_FRONT);
+				//bubbleShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, drawingSphere[i]);
 				glCullFace(GL_BACK);
 				bubbleShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, drawingSphere[i]);
 			}
@@ -3270,8 +3276,6 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			controllers[VRControllerHand::RIGHT],
 			grabPositionModelspace);
 		lastTime = currentTime;
-
-		glEnable(GL_BLEND);
 
 		checkGLErrors("Buffer overflow?");
 
@@ -3315,7 +3319,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			else {
 				printf("Attempting fallback - Saving to fallback.clr...\n");
 				//if (saveVolume("fallback.clr", objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
-				//if(saveVolume("fallback.clr", objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+				if(saveVolume("fallback.clr", objName.c_str(), colorResource.getRead().data.data(), colors.size()))
 				if (saveVolume("fallback.clr", objName.c_str(),
 					mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
 					colors.size()))

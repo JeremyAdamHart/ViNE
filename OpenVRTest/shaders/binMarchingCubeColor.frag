@@ -42,8 +42,8 @@ float fogModel(float fogStart, float fogScale, vec3 toFrag){
 
 void main(void)
 {
-	if(FragmentColor.a < 0.5f)
-		discard;
+	//if(FragmentColor.a < 0.5f)
+	//	discard;
 
 	vec3 color = FragmentColor.rgb;
 
