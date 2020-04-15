@@ -1,13 +1,13 @@
-#version 410
+#version 450
 
 // first output is mapped to the framebuffer's colour index by default
 out vec4 OutputColor;
 
-in vec3 FragmentColor;
+in vec4 FragmentColor;
 in vec3 WorldNormal;
 in vec3 WorldPosition;
 
-uniform vec3 viewPosition;
+uniform vec3 viewPosition[2];
 
 uniform vec3 lightPos = vec3(-1, 1, 1);
 
@@ -36,17 +36,22 @@ float blinnPhongLighting(vec3 normal, vec3 position, vec3 viewPosition)
 
 }
 
+float fogModel(float fogStart, float fogScale, vec3 toFrag){
+	return 1.0 - exp(-(length(toFrag)- fogStart)/fogScale);
+}
+
 void main(void)
 {
-	if(length(FragmentColor) < 0.02f)
+	if(FragmentColor.a < 0.5f)
 		discard;
 
-	vec3 color = FragmentColor;
+	vec3 color = FragmentColor.rgb;
 
-	color = color*blinnPhongLighting(normalize(WorldNormal), WorldPosition, viewPosition);
+	color = color*blinnPhongLighting(normalize(WorldNormal), WorldPosition, viewPosition[gl_ViewportIndex]);
 
 //	float fogAmount = 1- exp(-length(viewPosition - WorldPosition)/fogDist); 
-	float fogAmount = 1- pow(2.71828, -max(length(viewPosition - WorldPosition) - fogDist, 0.f)/fogScale);
+//	float fogAmount = 0.f;	//1- pow(2.71828, -max(length(viewPosition[gl_ViewportIndex] - WorldPosition) - fogDist, 0.f)/fogScale);
+ 	float fogAmount = fogModel(fogDist, fogScale, viewPosition[gl_ViewportIndex] - WorldPosition);
  	color = fogAmount*fogColor + (1-fogAmount)*color;
 
     // write colour output without modification

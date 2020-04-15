@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<AnalysisReport Version="1.0">
+  <ProcessId>13868</ProcessId>
+  <ReportCreationTime>2020-04-14T18:07:36.1506432-06:00</ReportCreationTime>
+  <ReportDirectory>c:\temp\OpenVRTest200414_000\OpenVRTest200414_000_Capture_000</ReportDirectory>
+  <ReportFile>c:\temp\OpenVRTest200414_000\OpenVRTest200414_000_Capture_000\OpenVRTest200414_000_Capture_000.nvreport</ReportFile>
+  <CaptureStartQpcTimestamp>6028587448490</CaptureStartQpcTimestamp>
+  <CaptureStartNveTimestamp>1970767628147968</CaptureStartNveTimestamp>
+  <CaptureStartNveFrequency>3492000000</CaptureStartNveFrequency>
+  <CaptureEndQpcTimestamp>6029564176619</CaptureEndQpcTimestamp>
+  <CaptureEndNveTimestamp>1971108693084188</CaptureEndNveTimestamp>
+  <CaptureStartRdtscTimestamp>1970767628148108</CaptureStartRdtscTimestamp>
+  <CaptureEndRdtscTimestamp>1971108693084929</CaptureEndRdtscTimestamp>
+  <CaptureStartFileTimeTimestamp>132313828569676428</CaptureStartFileTimeTimestamp>
+  <CaptureEndFileTimeTimestamp>132313829546401873</CaptureEndFileTimeTimestamp>
+</AnalysisReport>

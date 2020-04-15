@@ -2466,7 +2466,7 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 					for (auto vi : unfilteredNeighbours) {
 						for (auto lastPosition : currentState.controllerPositions) {
 							glm::vec3 vecToLastPosition = vi.point - lastPosition;
-							if (dot(vecToLastPosition, vecToLastPosition) < lastRadius*lastRadius)
+							if (dot(vecToLastPosition, vecToLastPosition) > lastRadius*lastRadius)
 								neighbours.push_back(vi);
 						}
 					}
@@ -2724,15 +2724,23 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		POSITION = 0, NORMAL, COLOR	//Attribute indices
 	};
 
-	//auto mcGeometry = make<IndexGeometryUint<attrib::Position, attrib::Normal, attrib::ColorIndex>>();
-	auto mcGeometry = make<MarchingCubesGeometry>(minfo.vertices.size());
-	mcGeometry->loadIndices(minfo.indices.data(), minfo.indices.size());
-	//mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data(), minfo.vertices.size());
-	mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data());
+	constexpr bool USING_PINNED = false;
+
+	auto mcGeometry = make<IndexGeometryUint<attrib::Position, attrib::Normal, attrib::ColorIndex>>();
+	auto mcGeometryPinned = make<MarchingCubesGeometry>(minfo.vertices.size());
+	if constexpr (!USING_PINNED) {
+		mcGeometry->loadIndices(minfo.indices.data(), minfo.indices.size());
+		mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data(), minfo.vertices.size());
+		drawables.push_back(Drawable(mcGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
+	}
+	else{
+		mcGeometryPinned->loadIndices(minfo.indices.data(), minfo.indices.size());
+		mcGeometryPinned->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data());
+		drawables.push_back(Drawable(mcGeometryPinned, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
+	}
 
 	printf("Create drawable\n");
-	//drawables.push_back(Drawable(streamGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
-	drawables.push_back(Drawable(mcGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
+
 	drawables[0].addMaterial(colorSetMat);		//new ColorSetMat(colorSet));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
 
@@ -2806,13 +2814,18 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 	Resource<StateInfo, 3> stateResource;
 	Resource<std::vector<unsigned char>, 3> colorResource(colors);
 	Resource<ChangedRange, 3> rangeResource;
-	//std::thread paintingThread = std::thread(paintingThreadFunc, 
-	//	std::ref(minfo.vertices), stateResource.createReader(), std::ref(colorResource), std::ref(rangeResource));
-	std::thread paintingThread = std::thread(paintingThreadFuncPinned,
-		std::ref(minfo.vertices), 
-		stateResource.createReader(), 
-		&mcGeometry->pinnedData, 
-		std::ref(rangeResource));
+	std::thread paintingThread;
+	if constexpr (!USING_PINNED){
+		paintingThread = std::thread(paintingThreadFunc, 
+			std::ref(minfo.vertices), stateResource.createReader(), std::ref(colorResource), std::ref(rangeResource));
+	}
+	else {
+		paintingThread = std::thread(paintingThreadFuncPinned,
+			std::ref(minfo.vertices), 
+			stateResource.createReader(), 
+			&mcGeometryPinned->pinnedData, 
+			std::ref(rangeResource));
+	}
 	//*/
 	size_t timestamp = 0;
 	size_t paintingTimestamp = 0;
@@ -2858,19 +2871,22 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		static bool saveColoredPLYButton = false;
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !saveColoredPLYButton) {
 			printf("Saving colored ply\n");
-			//createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
-			//	colorResource.getRead().data.data(), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
-			createPLYWithColors(
-				"coloredModel.ply", 
-				minfo.indices.data(), 
-				minfo.indices.size() / 3, 
-				minfo.vertices.data(), 
-				minfo.normals.data(),
-				mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(), 
-				colorSet.data(), 
-				minfo.vertices.size(), 
-				colorSet.size() - 1);
-			//*/
+			if constexpr (!USING_PINNED) {
+				createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
+					colorResource.getRead().data.data(), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+			}
+			else {
+				createPLYWithColors(
+					"coloredModel.ply", 
+					minfo.indices.data(), 
+					minfo.indices.size() / 3, 
+					minfo.vertices.data(), 
+					minfo.normals.data(),
+					mcGeometryPinned->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(), 
+					colorSet.data(), 
+					minfo.vertices.size(), 
+					colorSet.size() - 1);
+			}
 		}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
 			saveColoredPLYButton = false;
@@ -3040,10 +3056,11 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		stateResource.getWrite().data = newStateInfo;
 
 		glPopDebugGroup();		//Search neighbours
-		pushDebugGroup("Load colors");
 		//Upload updated colors
-		/*********** LOADBUFFER
+		/*********** LOADBUFFER************/
+		if(!USING_PINNED)
 		{
+			pushDebugGroup("Load colors");
 			auto newRange = rangeResource.getRead();
 			if(newRange.data.timestamp > paintingTimestamp && newRange.data.end > newRange.data.begin){
 				auto latestColorBuffer = colorResource.getRead();
@@ -3051,9 +3068,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 					(unsigned char*)&latestColorBuffer.data[newRange.data.begin], 
 					newRange.data.begin, newRange.data.end - newRange.data.begin);
 			}
-		}//*/
-
-		glPopDebugGroup();	//Load colors
+			glPopDebugGroup();	//Load colors
+		}
 		//Update color wheel position
 		colorWheel.position = controllers[0].position;
 		colorWheel.orientation = controllers[0].orientation;
@@ -3202,7 +3218,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		///////////
 		glLineWidth(10.f);
 		glEnable(GL_MULTISAMPLE);
-		glDisable(GL_CULL_FACE);
+		glEnable(GL_CULL_FACE);
 		glClearColor(0.f, 0.f, 0.f, 0.f);
 
 		if (writeScreenshot) {
@@ -3257,6 +3273,847 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		//Draw headset
 		pushDebugGroup("Submit frame");
 		vrContext.submitFrame(fbDraw);
+		glPopDebugGroup();	//Submit frame
+
+		pushDebugGroup("Update pose");
+		devices.updatePose();
+		glPopDebugGroup();
+		pushDebugGroup("Update state");
+		devices.updateState(vrContext.vrSystem);
+		glPopDebugGroup();
+
+		//Get time
+		static double lastTime = 0.f;
+		double currentTime = glfwGetTime();
+		sceneTransform.updateTransform(
+			currentTime - lastTime,
+			controllers[VRControllerHand::LEFT],
+			controllers[VRControllerHand::RIGHT],
+			grabPositionModelspace);
+		lastTime = currentTime;
+
+		checkGLErrors("Buffer overflow?");
+
+		//Write screenshot to file
+		if (writeScreenshot) {
+			blit(fbScreenshotDraw, fbScreenshotRead, 0, 0, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
+			string filename = findFilenameVariation("Screenshot.png");
+
+			Texture rightTex = fbScreenshotRead.getTexture(GL_COLOR_ATTACHMENT0);
+
+			size_t imageSize = rightTex.getWidth()*rightTex.getHeight() * 4;
+			unsigned char *data = new unsigned char[imageSize];
+			glGetTextureImage(rightTex.getID(), 0, GL_RGBA, GL_UNSIGNED_BYTE, imageSize, data);
+			stbi_flip_vertically_on_write(true);
+			stbi_write_png(filename.c_str(), rightTex.getWidth(), rightTex.getHeight(), 4, data, 0);
+
+			delete[] data;
+		}
+
+		if (frameTimeSamples > 30) {
+			double currentTime = glfwGetTime();
+			frameTime = currentTime - lastTime;
+			//			cout << "Time per frame = " << frameTime/double(frameTimeSamples) << endl;
+			frameTimeSamples = 0;
+			lastTime = currentTime;
+		}
+		else {
+			frameTimeSamples++;
+		}
+
+		static bool saveButtonPressed = false;
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !saveButtonPressed) {
+			//if (saveVolume(savedFilename.c_str(), objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
+			if (!USING_PINNED && saveVolume(savedFilename.c_str(), objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+				printf("Saved %s successfully\n", savedFilename.c_str());
+			else if (saveVolume(savedFilename.c_str(), objName.c_str(),
+				mcGeometryPinned->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
+				colors.size()))
+			{
+				printf("Saved %s successfully\n", savedFilename.c_str());
+			}
+			else {
+				printf("Attempting fallback - Saving to fallback.clr...\n");
+				//if (saveVolume("fallback.clr", objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
+				if(!USING_PINNED && saveVolume("fallback.clr", objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+					printf("Saved fallback.clr successfully\n");
+				else if (saveVolume("fallback.clr", objName.c_str(),
+					mcGeometryPinned->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
+					colors.size()))
+				{
+					printf("Saved fallback.clr successfully\n");
+				}
+			}
+			saveButtonPressed = true;
+		}
+		else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
+			saveButtonPressed = false;
+		}
+
+		glPopDebugGroup();	//Start client frame
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+
+	stateResource.getWrite().data.shouldClose = true;
+	paintingThread.join();
+
+	glfwTerminate();
+	vr::VR_Shutdown();
+}
+
+void WindowManager::paintingLoopMT(const char* loadedFile, const char* savedFile, int sampleNumber) {
+	glfwSetCursorPosCallback(window, cursorPositionCallback);
+	glfwSetWindowSizeCallback(window, windowResizeCallback);
+
+	GLint flags;
+	glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+	if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+	{
+		printf(">>In debugging mode\n");
+		glEnable(GL_DEBUG_OUTPUT);
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+		glDebugMessageCallback(glDebugOutput, nullptr);
+		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+	}
+
+	SimpleTexManager tm;
+	VRContext vrContext(&tm);
+
+	if (vrContext.vrSystem == nullptr) {
+		vr::VR_Shutdown();
+		glfwTerminate();
+		return;
+	}
+
+	const int FRAMES_PER_SECOND = 90;
+
+	//Load model
+	MeshInfoLoader minfo;
+	vector<unsigned char> colors;	// (minfo.vertices.size(), 0);
+	string objName;
+	string savedFilename;
+	if (hasExtension(loadedFile, ".obj")) {
+		minfo.loadModel(loadedFile);
+
+		colors.resize(minfo.vertices.size(), 0);
+		objName = loadedFile;
+		if (!hasExtension(savedFile, ".clr"))
+			savedFilename = findFilenameVariation(
+				"saved/" + swapExtension(getFilename(loadedFile), "clr"));
+		else
+			savedFilename = savedFile;
+	}
+	else if (hasExtension(loadedFile, ".ply")) {
+		minfo.loadModelPly(loadedFile);
+		colors.resize(minfo.vertices.size(), 0);
+		objName = loadedFile;
+		if (!hasExtension(savedFile, ".clr"))
+			savedFilename = findFilenameVariation(
+				"saved/" + swapExtension(getFilename(loadedFile), "clr"));
+		else
+			savedFilename = savedFile;
+	}
+	else {
+		loadVolume(loadedFile, &minfo, &colors, &objName);
+		savedFilename = savedFile;
+	}
+
+	printf("Number of vertices: %d\nNumber of faces: %d\n", minfo.vertices.size(), minfo.indices.size() / 3);
+
+	vec3 points[6] = {
+		//First triangle
+		vec3(-0.5f, 0.5f, 0.f)*2.f,
+		vec3(0.5f, -0.5f, 0.f)*2.f,
+		vec3(0.5f, 0.5f, 0.f)*2.f,
+		//Second triangle
+		vec3(0.5f, -0.5f, 0.f)*2.f,
+		vec3(-0.5f, 0.5f, 0.f)*2.f,
+		vec3(-0.5f, -0.5f, 0.f)*2.f
+	};
+
+	vec2 coords[6] = {
+		//First triangle
+		vec2(1, 0.f),
+		vec2(0.f, 1.f),
+		vec2(0.f, 0.f),
+		//Second triangle
+		vec2(0.f, 1.f),
+		vec2(1.f, 0.f),
+		vec2(1.f, 1.f)
+	};
+
+	vec3 normals[6] = {
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1),
+		vec3(0, 0, -1)
+	};
+
+
+	Framebuffer fbWindow(window_width, window_height);
+	gWindowWidth = window_width;
+	gWindowHeight = window_height;
+	unsigned int TEX_WIDTH = 800;
+	unsigned int TEX_HEIGHT = 800;
+	vrContext.vrSystem->GetRecommendedRenderTargetSize(&TEX_WIDTH, &TEX_HEIGHT);
+
+	//unsigned int SCREENSHOT_WIDTH = 6000;
+	//unsigned int SCREENSHOT_HEIGHT = 6000;
+
+	unsigned int SCREENSHOT_WIDTH = TEX_WIDTH * 2;
+	unsigned int SCREENSHOT_HEIGHT = TEX_HEIGHT * 2;
+
+	Framebuffer fbDrawLeft = createFramebufferWithColorAndDepth(TEX_WIDTH, TEX_HEIGHT, &tm, sampleNumber);
+	Framebuffer fbDrawRight = createFramebufferWithColorAndDepth(TEX_WIDTH, TEX_HEIGHT, &tm, sampleNumber);
+	Framebuffer fbScreenshotDraw = createFramebufferWithColorAndDepth(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm, 8);
+	Framebuffer fbScreenshotRead = createNewFramebuffer(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
+	fbScreenshotRead.addTexture(createTexture2D(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, &tm), GL_COLOR_ATTACHMENT0);
+
+
+
+	//Parse tracked devices
+	printf("Controller creation\n");
+	VRDeviceManager<VRCameraController, VRController> devices(vrContext.vrSystem, &tm);
+	VRController *controllers = devices.controllers;
+	VRControllerType controllerType = controllers[0].type;
+
+	setBindings(controllerType, &controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+	setBindings(controllerType, &controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
+
+	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllerType == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
+
+	//Squares for left and right views
+	printf("Texture plane created");
+	Drawable windowSquare(
+		new TextureGeometry(GL_TRIANGLES, points, coords, 6),
+		new TextureMat(vrContext.getTexture(vr::EVREye::Eye_Left)));
+
+	SimpleTexShader texShader;
+	SimpleShader wireframeShade;
+
+	//Binocular shaders
+	BubbleShader bubbleShader;
+	BlinnPhongShader bpShader;
+	BlinnPhongShader bpTexShader (BPTextureUsage::TEXTURE);
+
+	TrackballCamera savedCam = cam;
+
+	vec3 lightPos(-100.f, 100.f, 100.f);
+
+	fbWindow.use();
+
+	vector<Drawable> drawables;
+
+	//Set up transparency
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
+
+	/////////////////////////	
+	// STREAM GEOMETRY SETUP
+	/////////////////////////
+	//Generate color set
+	vector<vec3> colorSet;
+	colorSet = {
+		vec3(1, 1, 1),
+		vec3(1, 0, 0),
+		vec3(1, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 1),
+		vec3(0, 0, 1),
+		vec3(1, 0, 1),
+		vec3(1, 0.5, 0.25f)
+	};
+
+	colorSet = colorMapLoader("default.cmp");
+
+	int COLOR_NUM = colorSet.size();
+	auto colorSetMat = make<ColorSetMat>(colorSet);
+
+	VRColorShader colorShader(colorSet.size());
+	ColorWheelShaderBin colorWheelShader(colorSet.size());
+
+	enum {
+		POSITION = 0, NORMAL, COLOR	//Attribute indices
+	};
+
+	//auto mcGeometry = make<IndexGeometryUint<attrib::Position, attrib::Normal, attrib::ColorIndex>>();
+	auto mcGeometry = make<MarchingCubesGeometry>(minfo.vertices.size());
+	mcGeometry->loadIndices(minfo.indices.data(), minfo.indices.size());
+	//mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data(), minfo.vertices.size());
+	mcGeometry->loadBuffers(minfo.vertices.data(), minfo.normals.data(), colors.data());
+
+	printf("Create drawable\n");
+	//drawables.push_back(Drawable(streamGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
+	drawables.push_back(Drawable(mcGeometry, make_shared<ShadedMat>(0.4, 0.7, 0.6, 10.f /*0.4, 0.5, 0.5, 10.f*/)));
+	drawables[0].addMaterial(colorSetMat);		//new ColorSetMat(colorSet));
+	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
+
+	//Trackpad frame
+	ControllerReferenceFilepaths controllerPath(controllerType);
+	MeshInfoLoader trackpadFrameObj(controllerPath.trackpadFrame);
+	vec3 trackpadCenter(trackpadFrameObj.vertices[0]);
+	vec3 trackpadBx(trackpadFrameObj.vertices[1] - trackpadCenter);
+	vec3 trackpadBy(trackpadFrameObj.vertices[2] - trackpadCenter);
+	vec3 trackpadNormal = normalize(cross(trackpadBx, trackpadBy));
+	const float DIST_FROM_TPAD = 0.013f;
+	const float COLOR_WHEEL_SCALE = 1.5f;
+
+	//Draw position
+	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
+	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
+
+	//Grab position
+	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
+	vec3 grabPositionModelspace = grabPositionObj.vertices[0];
+
+	//Trackpad geometry
+	printf("Color wheel drawable\n");
+	ColorWheel colorWheel(
+		trackpadCenter + trackpadNormal * DIST_FROM_TPAD,
+		trackpadBx*COLOR_WHEEL_SCALE,
+		trackpadBy*COLOR_WHEEL_SCALE,
+		COLOR_NUM, 10);
+	colorWheel.addMaterial(new ShadedMat(0.7f, 0.3f, 0.3f, 10.f));
+	colorWheel.addMaterial(colorSetMat);	//new ColorSetMat(colorSet));
+
+	const float TRACKPAD_LIGHT_DIST = 0.5f;
+
+	//Drawing sphere
+	printf("Brush drawable\n");
+	unsigned char drawColor = 1;
+	float sphereTransparency = 1.0f;
+	float drawRadius = 0.05f;
+	auto sphereGeom = shared_ptr<MeshGeometryType>(objToElementGeometry("models/icosphere.obj"));
+	auto sphereColorMat = make_shared<ColorMat>(colorSet[drawColor]);
+	Drawable drawingSphere[2];
+	for (int i = 0; i < 2; i++) {
+		drawingSphere[i] = Drawable(sphereGeom, sphereColorMat);
+		drawingSphere[i].setScale(vec3(drawRadius));
+	}
+
+	//Load convex hull
+	string convexHullName = swapExtension(objName, ".hull");
+	MeshInfoLoader convexHullMesh;
+	convexHullMesh.loadModelPly(convexHullName.c_str());
+
+	//Time tracking
+	double frameTime = 0.f;
+	int frameTimeSamples = 0;
+	double lastTime = glfwGetTime();
+
+	vector<vec3> controllerPositions(2);
+
+	VRSceneTransform sceneTransform;
+	sceneTransform.setPosition(vec3(0.f, 1.f, -1.f));
+
+	//Updating
+	int counter = 0;
+	float lastAngle_TrackpadRadius = 0.f;
+	bool released_TrackpadRadius = true;
+	bool displaySphere[2] = { false, false };
+	bool displayColorWheel = false;
+	bool paintingButtonPressed[2] = { false, false };
+
+	//Setup painting thread
+	Resource<StateInfo, 3> stateResource;
+	Resource<std::vector<unsigned char>, 3> colorResource(colors);
+	Resource<ChangedRange, 3> rangeResource;
+	//std::thread paintingThread = std::thread(paintingThreadFunc, 
+	//	std::ref(minfo.vertices), stateResource.createReader(), std::ref(colorResource), std::ref(rangeResource));
+	std::thread paintingThread = std::thread(paintingThreadFuncPinned,
+		std::ref(minfo.vertices),
+		stateResource.createReader(),
+		&mcGeometry->pinnedData,
+		std::ref(rangeResource));
+	//*/
+	size_t timestamp = 0;
+	size_t paintingTimestamp = 0;
+
+	//Set initial controler state
+	devices.updateState(vrContext.vrSystem);
+
+	std::vector<StateAtDraw> stateAtDraw;
+	std::vector<StateAtDraw> replayState;
+
+	while (!glfwWindowShouldClose(window)) {
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		pushDebugGroup("Client frame");
+
+		/*if (gWindowWidth != window_width || gWindowHeight != window_height) {
+			window_width = gWindowWidth;
+			window_height = gWindowHeight;
+			fbWindow.resize(window_width, window_height);
+			leftEyeView.width = window_width;
+			leftEyeView.height = window_height;
+			rightEyeView.x = leftEyeView.width;
+			rightEyeView.width = window_width - leftEyeView.width;
+			rightEyeView.height = window_height;
+		}*/
+
+		displaySphere[0] = false;
+		displaySphere[1] = false;
+
+		vec2 trackpadDir[4] = { vec2(0, 1), vec2(1, 0), vec2(0, -1), vec2(-1, 0) };
+
+		pushDebugGroup("Query input");
+		//Update colormap
+		static bool updateMapButtonPressed = false;
+		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !updateMapButtonPressed) {
+			updateMapButtonPressed = true;
+			colorSet = colorMapLoader("default.cmp");
+			colorSetMat->colors = colorSet;
+		}
+		else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE)
+			updateMapButtonPressed = false;
+
+		static bool saveColoredPLYButton = false;
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !saveColoredPLYButton) {
+			printf("Saving colored ply\n");
+			//createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
+			//	colorResource.getRead().data.data(), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+			createPLYWithColors(
+				"coloredModel.ply",
+				minfo.indices.data(),
+				minfo.indices.size() / 3,
+				minfo.vertices.data(),
+				minfo.normals.data(),
+				mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
+				colorSet.data(),
+				minfo.vertices.size(),
+				colorSet.size() - 1);
+			//*/
+		}
+		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
+			saveColoredPLYButton = false;
+
+		const float MIN_TILT = (controllerHasTrackpad) ? 0.3f : 0.1f;	//Minimum offset from center for trackpads and joysticks
+
+		//Change color based on axis
+		if (controllers[VRControllerHand::LEFT].input.getActivation(COLOR_DISPLAY_CONTROL) ||
+			(!controllerHasTrackpad &&
+				length(controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL)) > MIN_TILT))
+		{
+			vec2 axis = controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL);
+			displayColorWheel = true;
+			colorWheel.thumbPos(axis);
+			if (controllerHasTrackpad || length(axis) > MIN_TILT) {
+				drawColor = axisToIndex(axis, COLOR_NUM);
+				sphereColorMat->color = vec4(colorSet[drawColor], sphereTransparency);
+				colorWheel.selectColor(drawColor);
+
+				static bool togglePressed = false;
+				if (controllers[VRControllerHand::LEFT].input.getActivation(TOGGLE_VISIBILITY_CONTROL) && !togglePressed) {
+					colorSetMat->visibility.toggle(drawColor);
+					togglePressed = true;
+				}
+				else if (!controllers[VRControllerHand::LEFT].input.getActivation(TOGGLE_VISIBILITY_CONTROL))
+					togglePressed = false;
+			}
+		}
+		else {
+			colorWheel.selectColor(COLOR_NUM);		//Unset value
+			displayColorWheel = false;
+			colorWheel.thumbPos(vec2(20.f, 20.f));
+		}
+		//Change radius based on axis
+		const float SCALE_PER_ROTATION = 2.f;
+		const float MIN_DRAW_RADIUS = 0.01f;
+		const float MAX_DRAW_RADIUS = 0.2f;
+
+
+		if ((controllers[VRControllerHand::RIGHT].input.getActivation(SPHERE_SIZE_TOUCH_CONTROL)
+			+ (length(controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL)) > MIN_TILT)
+			+ (!controllerHasTrackpad)) >= 2)
+		{
+
+			vec2 axis = controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL);
+			float currentAngle = atan2(axis.y, axis.x);
+
+			if (controllerHasTrackpad) {
+				if (released_TrackpadRadius) {
+					lastAngle_TrackpadRadius = currentAngle;
+					released_TrackpadRadius = false;
+				}
+				else {
+					//Find shortest angular distance from last to current position
+					float savedCurrentAngle = currentAngle;
+					float diffA = currentAngle - lastAngle_TrackpadRadius;
+					if (currentAngle < lastAngle_TrackpadRadius) currentAngle += 2.f*PI;
+					else lastAngle_TrackpadRadius += 2.f*PI;
+					float diffB = currentAngle - lastAngle_TrackpadRadius;
+					float diff = (abs(diffA) < abs(diffB)) ? diffA : diffB;
+
+					drawRadius = glm::clamp(drawRadius*pow(SCALE_PER_ROTATION, -diff / (2.f*PI)), MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+					drawingSphere[0].setScale(vec3(drawRadius));
+					drawingSphere[1].setScale(vec3(drawRadius));
+
+					lastAngle_TrackpadRadius = savedCurrentAngle;
+				}
+			}
+			else {
+				float scaleChange = pow(2.f, axis.y / float(FRAMES_PER_SECOND / 2));	//Sphere size doubles in half a second
+
+				drawRadius = glm::clamp(drawRadius*scaleChange, MIN_DRAW_RADIUS, MAX_DRAW_RADIUS);
+				drawingSphere[0].setScale(vec3(drawRadius));
+				drawingSphere[1].setScale(vec3(drawRadius));
+			}
+			displaySphere[1] = true;
+		}
+		else {
+			released_TrackpadRadius = true;
+		}
+
+		glPopDebugGroup();	//Query input
+
+		/////////////////
+		// Replay state
+		////////////////
+		if (replayState.size() > 0) {
+			sceneTransform.orientation = replayState.back().modelOrientation;
+			sceneTransform.position = replayState.back().modelPosition;
+			sceneTransform.scale = replayState.back().modelScale;
+
+			//Force controller inputs
+			controllers[0].setPosition(replayState.back().controllerPosition[0]);
+			controllers[0].setOrientation(replayState.back().controllerOrientation[0]);
+			controllers[0].input.setActivation(
+				SPHERE_DISPLAY_CONTROL, replayState.back().controllerPainting[0]);
+			controllers[0].input.setScalar(
+				PAINT_CONTROL, (replayState.back().controllerPainting[0]) ? 1.f : 0.f);
+
+			controllers[1].input.setActivation(
+				SPHERE_DISPLAY_CONTROL, replayState.back().controllerPainting[1]);
+			controllers[1].input.setScalar(
+				PAINT_CONTROL, (replayState.back().controllerPainting[1]) ? 1.f : 0.f);
+			controllers[1].setPosition(replayState.back().controllerPosition[1]);
+			controllers[1].setOrientation(replayState.back().controllerOrientation[1]);
+
+			drawColor = replayState.back().drawColor;
+			drawRadius = replayState.back().brushRadius;
+
+			devices.hmd.leftEye.setCameraMatrix(replayState.back().leftCamera);
+			devices.hmd.rightEye.setCameraMatrix(replayState.back().rightCamera);
+
+			replayState.pop_back();
+		}
+
+		//Update model
+		for (int i = 0; i < drawables.size(); i++) {
+			drawables[i].setOrientation(sceneTransform.getOrientationQuat());
+			drawables[i].setPosition(sceneTransform.getPos());
+			drawables[i].setScale(vec3(sceneTransform.scale));
+		}
+
+		//Painting
+		StateInfo newStateInfo(timestamp);
+		//printf("-------Client %d-------\n", timestamp);
+		pushDebugGroup("Search neighbours");
+		vector<IndexVec3> neighbours;
+		for (int i = 0; i < 2; i++) {
+			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)) {
+				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
+				mat4 invrsTrans = inverse(sceneTransform.getTransform());
+				pos = vec3(invrsTrans*vec4(pos, 1));
+
+				paintingButtonPressed[i] =
+					controllers[i].input.getScalar(PAINT_CONTROL) > 0.95f;
+				if (paintingButtonPressed[i]) {
+					newStateInfo.controllerPositions.push_back(pos);
+					newStateInfo.scaledDrawRadius = drawRadius / sceneTransform.scale;
+					newStateInfo.drawColor = drawColor;
+				}
+
+				displaySphere[i] = true;		//TODO get rid of?
+			}
+		}
+
+		static bool undoButtonPressed = false;
+		bool pressed = controllers[0].input.getActivation(UNDO_CONTROL);
+		if (pressed == false && undoButtonPressed) {
+			newStateInfo.action = StateInfo::UNDO;
+			undoButtonPressed = false;
+		}
+		else if (pressed) {
+			undoButtonPressed = true;
+		}
+		static bool redoButtonPressed = false;
+		pressed = controllers[1].input.getActivation(REDO_CONTROL);
+		if (pressed == false && redoButtonPressed) {
+			newStateInfo.action = StateInfo::REDO;
+			redoButtonPressed = false;
+		}
+		else if (pressed) {
+			redoButtonPressed = true;
+		}
+		timestamp++;
+		newStateInfo.timestamp = timestamp;
+		newStateInfo.visibility = colorSetMat->visibility;
+		stateResource.getWrite().data = newStateInfo;
+
+		glPopDebugGroup();		//Search neighbours
+		pushDebugGroup("Load colors");
+		//Upload updated colors
+		/*********** LOADBUFFER
+		{
+			auto newRange = rangeResource.getRead();
+			if(newRange.data.timestamp > paintingTimestamp && newRange.data.end > newRange.data.begin){
+				auto latestColorBuffer = colorResource.getRead();
+				mcGeometry->loadSubBuffer<attrib::ColorIndex>(
+					(unsigned char*)&latestColorBuffer.data[newRange.data.begin],
+					newRange.data.begin, newRange.data.end - newRange.data.begin);
+			}
+		}//*/
+
+		glPopDebugGroup();	//Load colors
+		//Update color wheel position
+		colorWheel.position = controllers[0].position;
+		colorWheel.orientation = controllers[0].orientation;
+
+		//Update sphere positions
+		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
+		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
+
+		pushDebugGroup("Distance to convex hull");
+		//Update bounding sphere on model and find fog bounds
+		float closestPoint = std::numeric_limits<float>::max();
+		float furthestPoint = -std::numeric_limits<float>::max();
+		mat4 invModelMatrix = inverse(sceneTransform.getTransform());
+		vec3 cameraPosition = vec3(invModelMatrix*vec4(devices.hmd.leftEye.getPosition(), 1));
+
+		std::pair<float, float> distPair = getClosestAndFurthestDistanceToConvexHull(
+			cameraPosition,
+			convexHullMesh.vertices.data(),
+			convexHullMesh.vertices.size(),
+			convexHullMesh.indices.data(),
+			convexHullMesh.indices.size() / 3);
+
+		float fogDistance = distPair.first*sceneTransform.scale;
+		float fogScale = (distPair.second - distPair.first)*0.5f*sceneTransform.scale;
+		glPopDebugGroup();		//Distance to convex hull
+
+
+
+		//Setup screenshot
+		//Projection matrix for screenshots
+		float aspectRatio = float(SCREENSHOT_WIDTH) / float(SCREENSHOT_HEIGHT);
+		static bool screenshotPressed = false;
+		static bool writeScreenshot = false;
+		if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed) {
+			printf("Screenshot pressed\n");
+			printf("aspect ratio %f\n", aspectRatio);
+			//devices.hmd.rightEye.setProjectionMatrix(perspective(radians(75.f), aspectRatio, 0.01f, 10.f));
+			screenshotPressed = true;
+			writeScreenshot = true;
+		}
+		else if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && screenshotPressed) {
+			devices.hmd.setProjection(vrContext.vrSystem);
+			writeScreenshot = false;
+		}
+		else if (screenshotPressed) {
+			screenshotPressed = false;
+			writeScreenshot = false;
+			devices.hmd.setProjection(vrContext.vrSystem);
+		}
+		else {
+			screenshotPressed = false;
+			writeScreenshot = false;
+		}
+
+		//Load and save views
+		static bool saveViewPressed = false;
+		if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && !saveViewPressed) {
+			saveViewPressed = true;
+			string filename = findFilenameVariation(string(loadedFile) + ".view");
+			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
+			VRView view;
+			view.generateView(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);
+			view.scale = sceneTransform.scale;	//Should be part of function
+			saveVRViewToFile(filename.c_str(), &view);
+
+		}
+		else if (!controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && saveViewPressed)
+			saveViewPressed = false;
+
+		static bool loadViewPressed = false;
+		int keyPressed = getNumberKeyPressed(window);
+		if (keyPressed && !loadViewPressed) {
+			loadViewPressed = true;
+			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
+			VRView view;
+			if (loadVRViewFromFile((string(loadedFile) + to_string(keyPressed) + string(".view")).c_str(), &view)) {
+				view.getViewFromCameraPositionAndOrientation(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);		//&drawables[0]);
+				sceneTransform.scale = view.scale;		//Should be part of function
+				sceneTransform.velocity = vec3(0);
+				sceneTransform.angularVelocity = quat();
+			}
+		}
+		else if (!keyPressed && loadViewPressed)
+			loadViewPressed = false;
+
+		////////////////////////
+		// Save/load draw sequence
+		////////////////////////
+		static bool savingState = false;
+		static bool saveStatePressed = false;
+		if (!saveStatePressed &&
+			controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_DRAW_SEQUENCE))
+		{
+			saveStatePressed = true;
+			savingState = !savingState;
+			if (!savingState)
+				saveControllerSequence(stateAtDraw, "DrawSequence.seq");
+		}
+		else if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_DRAW_SEQUENCE))
+			saveStatePressed = false;
+
+		if (savingState)
+		{
+			stateAtDraw.push_back(StateAtDraw());
+			stateAtDraw.back().leftCamera = devices.hmd.leftEye.getCameraMatrix();
+			stateAtDraw.back().rightCamera = devices.hmd.rightEye.getCameraMatrix();
+
+			stateAtDraw.back().brushRadius = drawRadius;
+			stateAtDraw.back().drawColor = drawColor;
+
+			stateAtDraw.back().modelPosition = drawables[0].getPos();
+			stateAtDraw.back().modelOrientation = drawables[0].getOrientationQuat();
+			stateAtDraw.back().modelScale = sceneTransform.scale;
+
+			stateAtDraw.back().controllerPosition[0] = controllers[0].getPos();
+			stateAtDraw.back().controllerOrientation[0] = controllers[0].getOrientationQuat();
+			stateAtDraw.back().controllerPainting[0] = paintingButtonPressed[0];
+
+			stateAtDraw.back().controllerPosition[1] = controllers[1].getPos();
+			stateAtDraw.back().controllerOrientation[1] = controllers[1].getOrientationQuat();
+			stateAtDraw.back().controllerPainting[1] = paintingButtonPressed[1];
+
+			//stateAtDraw.back().modelTransform = drawables[0].getTransform();
+			//stateAtDraw.back().controller[0] = controllers[0].getTransform();
+			//stateAtDraw.back().controller[1] = controllers[1].getTransform();
+			savingState = true;
+		}
+
+		//replayState.pop_back();
+		static bool loadStatePressed = false;
+		if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !loadStatePressed) {
+			replayState = loadControllerSequence("DrawSequence.seq");
+			std::reverse(replayState.begin(), replayState.end());
+			loadStatePressed = true;
+
+			pushDebugGroup("Start replay");
+			std::this_thread::sleep_for(std::chrono::milliseconds(40));
+			glPopDebugGroup();
+
+		}
+		else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
+			loadStatePressed = false;
+
+		////////////
+		// DRAWING
+		///////////
+		glLineWidth(10.f);
+
+		//DRAW LEFT EYE
+		glEnable(GL_MULTISAMPLE);
+		glEnable(GL_CULL_FACE);
+		glClearColor(0.f, 0.f, 0.f, 0.f);
+
+		if (writeScreenshot) {
+			printf("Write screenshot\n");
+			fbScreenshotDraw.use();
+		}
+		else
+			fbDrawLeft.use();
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		checkGLErrors("Before bpTexShader");
+		for (int i = 0; i < 2; i++)
+			bpTexShader.draw(devices.hmd.leftEye, lightPos, controllers[i]);
+		for (int i = 0; i < drawables.size(); i++) {
+			colorShader.draw(devices.hmd.leftEye, lightPos,
+				fogScale, fogDistance,
+				vec3(0.02f, 0.04f, 0.07f), drawables[i]);		//Add lightPos and colorMat checking
+		}
+		if (displayColorWheel) {
+			colorWheelShader.draw(
+				devices.hmd.leftEye,
+				devices.hmd.rightEye,
+				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST),
+				colorWheel.origin,
+				colorWheel);
+		}
+
+		glEnable(GL_BLEND);
+		glEnable(GL_CULL_FACE);
+
+		for (int i = 0; i < 2; i++) {
+			if (displaySphere[i]) {
+				//glCullFace(GL_FRONT);
+				//bubbleShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, drawingSphere[i]);
+				glCullFace(GL_BACK);
+				bubbleShader.draw(devices.hmd.leftEye, drawingSphere[i]);
+			}
+		}
+
+		//DRAW RIGHT EYE
+		glEnable(GL_MULTISAMPLE);
+		glEnable(GL_CULL_FACE);
+		glClearColor(0.f, 0.f, 0.f, 0.f);
+
+		fbDrawRight.use();
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		checkGLErrors("Before bpTexShader");
+		for (int i = 0; i < 2; i++)
+			bpTexShader.draw(devices.hmd.rightEye, lightPos, controllers[i]);
+		for (int i = 0; i < drawables.size(); i++) {
+			colorShader.draw(devices.hmd.rightEye, lightPos,
+				fogScale, fogDistance,
+				vec3(0.02f, 0.04f, 0.07f), drawables[i]);		//Add lightPos and colorMat checking
+		}
+		if (displayColorWheel) {
+			colorWheelShader.draw(
+				devices.hmd.leftEye,
+				devices.hmd.rightEye,
+				colorWheel.trackpadLightPosition(TRACKPAD_LIGHT_DIST),
+				colorWheel.origin,
+				colorWheel);
+		}
+
+		glEnable(GL_BLEND);
+		glEnable(GL_CULL_FACE);
+
+		for (int i = 0; i < 2; i++) {
+			if (displaySphere[i]) {
+				//glCullFace(GL_FRONT);
+				//bubbleShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, drawingSphere[i]);
+				glCullFace(GL_BACK);
+				bubbleShader.draw(devices.hmd.rightEye, drawingSphere[i]);
+			}
+		}
+
+		glDisable(GL_MULTISAMPLE);
+		glDisable(GL_BLEND);
+
+		checkGLErrors("Before draw window");
+
+		//Draw window
+		fbWindow.use();
+		//leftEyeView.use();
+		glClearColor(1.0, 1.0, 1.0, 0.0);
+		texShader.draw(cam, windowSquare);
+
+		checkGLErrors("Before submit");
+
+		//Draw headset
+		pushDebugGroup("Submit frame");
+		vrContext.submitFrame(fbDrawLeft, vr::EVREye::Eye_Left);
+		vrContext.submitFrame(fbDrawRight, vr::EVREye::Eye_Right);
 		//vr::VRCompositor()->PostPresentHandoff();
 		glPopDebugGroup();	//Submit frame
 
@@ -3312,20 +4169,20 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			//if (saveVolume(savedFilename.c_str(), objName.c_str(), colorResource.getRead().data.data(), colors.size()))
 			if (saveVolume(savedFilename.c_str(), objName.c_str(),
 				mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
-				colors.size())) 
+				colors.size()))
 			{
 				printf("Saved %s successfully\n", savedFilename.c_str());
 			}
 			else {
 				printf("Attempting fallback - Saving to fallback.clr...\n");
 				//if (saveVolume("fallback.clr", objName.c_str(), streamGeometry->vboPointer<COLOR>(), colors.size()))
-				if(saveVolume("fallback.clr", objName.c_str(), colorResource.getRead().data.data(), colors.size()))
-				if (saveVolume("fallback.clr", objName.c_str(),
-					mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
-					colors.size()))
-				{
-					printf("Saved fallback.clr successfully\n");
-				}
+				if (saveVolume("fallback.clr", objName.c_str(), colorResource.getRead().data.data(), colors.size()))
+					if (saveVolume("fallback.clr", objName.c_str(),
+						mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
+						colors.size()))
+					{
+						printf("Saved fallback.clr successfully\n");
+					}
 			}
 			saveButtonPressed = true;
 		}

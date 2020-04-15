@@ -27,6 +27,17 @@ public:
 		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
 };
 
+
+class VRColorShader : public ShaderT<ShadedMat, ColorSetMat> {
+	static vector<pair<GLenum, string>> shaders();
+
+public:
+	VRColorShader(int maxColorNum);
+	void draw(const Camera &cam, glm::vec3 lightPos,
+		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
+};
+
+/*
 class VRColorShader : public Shader {
 protected:
 	vector<int> uniformLocations;
@@ -46,7 +57,7 @@ public:
 		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
 	void draw(const Camera &cam, const Scene &scene);
 };
-
+*/
 
 
 }

@@ -42,18 +42,20 @@ float fogModel(float fogStart, float fogScale, vec3 toFrag){
 
 void main(void)
 {
-	//if(FragmentColor.a < 0.5f)
-	//	discard;
+	if(FragmentColor.a < 0.5f)
+		discard;
+	else{
+		vec3 color = FragmentColor.rgb;
 
-	vec3 color = FragmentColor.rgb;
+		color = color*blinnPhongLighting(normalize(WorldNormal), WorldPosition, viewPosition[gl_ViewportIndex]);
 
-	color = color*blinnPhongLighting(normalize(WorldNormal), WorldPosition, viewPosition[gl_ViewportIndex]);
+	//	float fogAmount = 1- exp(-length(viewPosition - WorldPosition)/fogDist); 
+	//	float fogAmount = 0.f;	//1- pow(2.71828, -max(length(viewPosition[gl_ViewportIndex] - WorldPosition) - fogDist, 0.f)/fogScale);
+	 	float fogAmount = fogModel(fogDist, fogScale, viewPosition[gl_ViewportIndex] - WorldPosition);
+	 	color = fogAmount*fogColor + (1-fogAmount)*color;
 
-//	float fogAmount = 1- exp(-length(viewPosition - WorldPosition)/fogDist); 
-//	float fogAmount = 0.f;	//1- pow(2.71828, -max(length(viewPosition[gl_ViewportIndex] - WorldPosition) - fogDist, 0.f)/fogScale);
- 	float fogAmount = fogModel(fogDist, fogScale, viewPosition[gl_ViewportIndex] - WorldPosition);
- 	color = fogAmount*fogColor + (1-fogAmount)*color;
+	    // write colour output without modification
+	    OutputColor = vec4(color, 1.0);
+	}
 
-    // write colour output without modification
-    OutputColor = vec4(color, 1.0);
 }

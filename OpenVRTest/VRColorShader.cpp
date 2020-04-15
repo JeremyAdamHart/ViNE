@@ -103,8 +103,49 @@ void VRColorShaderBin::drawNew(const Camera &cam_left, const Camera &cam_right, 
 	glUseProgram(0);
 }
 
-//REST SHOULD BE DEPRECATED?
+///////////////////
+// VRColorShader
+///////////////////
 
+vector<pair<GLenum, string>> VRColorShader::shaders() {
+	return {
+		{ GL_VERTEX_SHADER, "shaders/marchingCubeColor.vert" },
+		{ GL_FRAGMENT_SHADER, "shaders/marchingCubeColor.frag" }
+	};
+}
+
+VRColorShader::VRColorShader(int maxColorNum)
+	:ShaderT<ShadedMat, ColorSetMat>(shaders(),
+		{ {GL_VERTEX_SHADER, std::string("#define MAX_COLOR_NUM " + to_string(maxColorNum) + "\n") } },
+		{ "ka", "ks", "kd", "alpha",
+		"colors", "visibility", "view_projection_matrix", "model_matrix", "viewPosition", "lightPos",
+		"fogDist", "fogColor", "fogScale" }) {}
+
+void VRColorShader::draw(const Camera &cam, glm::vec3 lightPos,
+	float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj)
+{
+	glUseProgram(programID);
+
+	mat4 vp_matrix = cam.getProjectionMatrix()*cam.getCameraMatrix();
+
+	mat4 m_matrix = obj.getTransform();
+	vec3 camera_pos[2] = { cam.getPosition(), cam.getPosition() };
+
+	loadMaterialUniforms(obj);
+	glUniformMatrix4fv(uniformLocations[uniform::VP_MATRIX_LOCATION], 1, false, &vp_matrix[0][0]);
+	glUniformMatrix4fv(uniformLocations[uniform::M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
+	glUniform3fv(uniformLocations[uniform::VIEW_LOCATION], 2, &camera_pos[0][0]);
+	glUniform3f(uniformLocations[uniform::LIGHT_POS_LOCATION], lightPos.x, lightPos.y, lightPos.z);
+	glUniform1f(uniformLocations[uniform::FOG_SCALE_LOCATION], fogScale);
+	glUniform1f(uniformLocations[uniform::FOG_DISTANCE_LOCATION], fogDistance);
+	glUniform3f(uniformLocations[uniform::FOG_COLOR_LOCATION], fogColor.x, fogColor.y, fogColor.z);
+
+	obj.getGeometry().drawGeometry(programID);
+	glUseProgram(0);
+}
+
+//REST SHOULD BE DEPRECATED?
+/*
 static vector<pair<GLenum, string>> shaders{
 	{ GL_VERTEX_SHADER, "shaders/marchingCubeColor.vert" },
 	{ GL_FRAGMENT_SHADER, "shaders/marchingCubeColor.frag" }
@@ -192,5 +233,5 @@ void VRColorShader::draw(const Camera &cam, glm::vec3 lightPos,
 	obj.getGeometry().drawGeometry(programID);
 	glUseProgram(0);
 }
-
+*/
 }
