@@ -19,7 +19,7 @@ uniform float ka = 0.4;
 
 uniform float fogScale = 6.f;		//Scale of fog
 uniform float fogDist = 0.f;		//Distance to start of fog
-uniform vec3 fogColor = vec3(0.02, 0.04, 0.07);	
+uniform vec3 fogColor = vec3(0.03, 0.04, 0.05);	
 
 float blinnPhongLighting(vec3 normal, vec3 position, vec3 viewPosition)
 {

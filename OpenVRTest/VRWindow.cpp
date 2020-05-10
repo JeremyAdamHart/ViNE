@@ -609,7 +609,7 @@ void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand ha
 		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
 		input->assignButton(TOGGLE_VISIBILITY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 //		input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
-//		input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_ApplicationMenu);
+		input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_ApplicationMenu);
 
 	} else {
 		input->assignButton(REDO_CONTROL, vr::k_EButton_ApplicationMenu);
@@ -617,8 +617,8 @@ void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand ha
 		input->assignTouch(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
 		input->assignTouch(SPHERE_SIZE_TOUCH_CONTROL, vr::k_EButton_SteamVR_Touchpad);
-		//input->assignButton(SAVE_VIEW_CONTROL, vr::k_EButton_SteamVR_Touchpad);
-		input->assignButton(SAVE_DRAW_SEQUENCE, vr::k_EButton_SteamVR_Touchpad);
+		input->assignButton(SAVE_VIEW_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		//input->assignButton(SAVE_DRAW_SEQUENCE, vr::k_EButton_SteamVR_Touchpad);
 	}
 }
 
@@ -1467,7 +1467,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 		//Write screenshot to file
 		if (screenshotPressed && controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL)) {
-			string filename = findFilenameVariation("Screenshot.png");
+			string filename = findFilenameVariation("screenshots/Screenshot.png");
 
 			Texture rightTex = fbScreenshotRead.getTexture(GL_COLOR_ATTACHMENT0);
 
@@ -2058,7 +2058,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		static bool saveViewPressed = false;
 		if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && !saveViewPressed) {
 			saveViewPressed = true;
-			string filename = findFilenameVariation(string(loadedFile) + ".view");
+			string filename = findFilenameVariation("./views/"+ std::string(loadedFile) + ".view");
 			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
 			VRView view;
 			view.generateView(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);
@@ -3128,7 +3128,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		static bool saveViewPressed = false;
 		if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && !saveViewPressed) {
 			saveViewPressed = true;
-			string filename = findFilenameVariation(string(loadedFile) + ".view");
+			string filename = findFilenameVariation("./views/" + std::string(loadedFile) + ".view");
 			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
 			VRView view;
 			view.generateView(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);
@@ -3145,7 +3145,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			loadViewPressed = true;
 			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
 			VRView view;
-			if (loadVRViewFromFile((string(loadedFile) + to_string(keyPressed) + string(".view")).c_str(), &view)) {
+			if (loadVRViewFromFile(("./views/" + string(loadedFile) + to_string(keyPressed) + string(".view")).c_str(), &view)) {
 				view.getViewFromCameraPositionAndOrientation(devices.hmd.rightEye.getPosition(), cameraDir, &sceneTransform);		//&drawables[0]);
 				sceneTransform.scale = view.scale;		//Should be part of function
 				sceneTransform.velocity = vec3(0);
@@ -3296,8 +3296,9 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 		//Write screenshot to file
 		if (writeScreenshot) {
+			glEnable(GL_MULTISAMPLE);
 			blit(fbScreenshotDraw, fbScreenshotRead, 0, 0, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
-			string filename = findFilenameVariation("Screenshot.png");
+			string filename = findFilenameVariation("screenshots/Screenshot.png");
 
 			Texture rightTex = fbScreenshotRead.getTexture(GL_COLOR_ATTACHMENT0);
 
@@ -3306,7 +3307,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			glGetTextureImage(rightTex.getID(), 0, GL_RGBA, GL_UNSIGNED_BYTE, imageSize, data);
 			stbi_flip_vertically_on_write(true);
 			stbi_write_png(filename.c_str(), rightTex.getWidth(), rightTex.getHeight(), 4, data, 0);
-
+			printf("Screenshot written to %s\n", filename.c_str());
+			glDisable(GL_MULTISAMPLE);
 			delete[] data;
 		}
 
