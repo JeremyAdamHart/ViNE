@@ -23,6 +23,11 @@ uniform vec3 fogColor = vec3(0.03, 0.04, 0.05);
 
 float blinnPhongLighting(vec3 normal, vec3 position, vec3 viewPosition)
 {
+	//Debug
+	float spec = 1.3*ks;
+	float diff = 1.3*kd;
+	float amb = 1.3*ka;
+
 	vec3 viewer = normalize(viewPosition - position);
 	vec3 light = normalize(lightPos - position);
 	float attenuation = 1.f;	//320.f/(length(position - lightPos)*length(position-lightPos));
@@ -31,8 +36,8 @@ float blinnPhongLighting(vec3 normal, vec3 position, vec3 viewPosition)
 	//Formula found here: http://www.farbrausch.de/~fg/stuff/phong.pdf
 	float normalizationFactor = (alpha+2)*(alpha+4)/(8*M_PI*(pow(sqrt(2), -alpha)+alpha));
 
-	return max(dot(normal, light), 0)* (ks*normalizationFactor * pow(clamp(dot(normal, h), 0.0, 1.0), alpha)
-			+ kd*clamp(dot(normal, light), 0.0, 1.0))*attenuation + ka;
+	return max(dot(normal, light), 0)* (spec*normalizationFactor * pow(clamp(dot(normal, h), 0.0, 1.0), alpha)
+			+ diff*clamp(dot(normal, light), 0.0, 1.0))*attenuation + amb;
 
 }
 

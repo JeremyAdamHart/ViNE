@@ -22,6 +22,7 @@ void VRView::getViewFromCameraPositionAndOrientation(vec3 cameraPos, vec3 camera
 	model->orientation = quat_cast(viewRotation*getOrientationMat4());
 }
 
+//Creates the view
 void VRView::generateView(glm::vec3 cameraPos, glm::vec3 cameraDir, Object* model) {
 	//Not completely robust if looking straight up
 	vec3 planarDir = normalize(vec3(cameraDir.x, 0, cameraDir.z));

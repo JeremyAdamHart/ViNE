@@ -3,7 +3,7 @@
 155 177 124 	#Disk
 205 163 120		#Main veins
 217 203 76		#Auxilliary veins 
-0 0 255
-201 55 18		#Voronoi
+132 95 199
+155 177 124		#Voronoi
 231 149 48		#Ray
-128 110 156
+230 67 67		#Backwards veins

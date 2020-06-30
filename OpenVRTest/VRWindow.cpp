@@ -608,7 +608,7 @@ void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand ha
 		input->assignTouch(COLOR_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
 		input->assignButton(TOGGLE_VISIBILITY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
-//		input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		//input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
 		input->assignButton(SCREENSHOT_CONTROL, vr::k_EButton_ApplicationMenu);
 
 	} else {
@@ -1168,7 +1168,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !saveColoredPLYButton) {
 			printf("Saving colored ply\n");
 			createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
-				reinterpret_cast<unsigned char*>(streamGeometry->vboPointer<COLOR>()), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+				reinterpret_cast<unsigned char*>(streamGeometry->vboPointer<COLOR>()), colorSet.data(), minfo.vertices.size(), colorSetMat->visibility);
 		}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
 			saveColoredPLYButton = false;
@@ -1863,7 +1863,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !saveColoredPLYButton) {
 			printf("Saving colored ply\n");
 			createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
-				reinterpret_cast<unsigned char*>(streamGeometry->vboPointer<COLOR>()), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+				reinterpret_cast<unsigned char*>(streamGeometry->vboPointer<COLOR>()), colorSet.data(), minfo.vertices.size(), colorSetMat->visibility );
 		}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
 			saveColoredPLYButton = false;
@@ -2612,13 +2612,13 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 	vec2 coords[6] = {
 		//First triangle
-		vec2(1, 0.f),
-		vec2(0.f, 1.f),
-		vec2(0.f, 0.f),
+		vec2(0, 1),
+		vec2(1, 0),
+		vec2(1, 1),
 		//Second triangle
-		vec2(0.f, 1.f),
-		vec2(1.f, 0.f),
-		vec2(1.f, 1.f)
+		vec2(1, 0),
+		vec2(0, 1),
+		vec2(0, 0)
 	};
 
 	vec3 normals[6] = {
@@ -2673,6 +2673,9 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 	Drawable windowSquare(
 		new TextureGeometry(GL_TRIANGLES, points, coords, 6),
 		new TextureMat(vrContext.getTexture()));
+
+	windowSquare.setScale(vec3(2, 1, 1));
+	windowSquare.position = vec3(1, 0, 0);
 
 	SimpleTexShader texShader;
 	SimpleShader wireframeShade;
@@ -2873,7 +2876,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			printf("Saving colored ply\n");
 			if constexpr (!USING_PINNED) {
 				createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
-					colorResource.getRead().data.data(), colorSet.data(), minfo.vertices.size(), colorSet.size() - 1);
+					colorResource.getRead().data.data(), colorSet.data(), minfo.vertices.size(), colorSetMat->visibility);
 			}
 			else {
 				createPLYWithColors(
@@ -2885,7 +2888,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 					mcGeometryPinned->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(), 
 					colorSet.data(), 
 					minfo.vertices.size(), 
-					colorSet.size() - 1);
+					colorSetMat->visibility);
 			}
 		}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
@@ -3106,7 +3109,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed) {
 			printf("Screenshot pressed\n");
 			printf("aspect ratio %f\n", aspectRatio);
-			//devices.hmd.rightEye.setProjectionMatrix(perspective(radians(75.f), aspectRatio, 0.01f, 10.f));
+			devices.hmd.rightEye.setProjectionMatrix(glm::perspective(radians(75.f), aspectRatio, 0.01f, 10.f));
+			devices.hmd.leftEye.setProjectionMatrix(glm::perspective(radians(75.f), aspectRatio, 0.01f, 10.f));
 			screenshotPressed = true;
 			writeScreenshot = true;
 		}
@@ -3310,6 +3314,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			printf("Screenshot written to %s\n", filename.c_str());
 			glDisable(GL_MULTISAMPLE);
 			delete[] data;
+			//stbi_image_free(data);
 		}
 
 		if (frameTimeSamples > 30) {
@@ -3689,7 +3694,7 @@ void WindowManager::paintingLoopMT(const char* loadedFile, const char* savedFile
 				mcGeometry->pinnedData.getRead()->get<attrib::Pinned<attrib::ColorIndex>>(),
 				colorSet.data(),
 				minfo.vertices.size(),
-				colorSet.size() - 1);
+				colorSetMat->visibility);
 			//*/
 		}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)

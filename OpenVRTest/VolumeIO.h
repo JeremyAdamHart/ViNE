@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include "MeshInfoLoader.h"
+#include <Bitmask.h>
 
 bool saveVolume(std::string saveFileName, std::string objName, const unsigned char* colors, int pointNum);
 bool loadVolume(std::string saveFileName, renderlib::MeshInfoLoader* minfo, std::vector<unsigned char>* colors, std::string* objName);
@@ -18,4 +19,4 @@ std::string findFilenameVariation(std::string filepath);
 std::string createPLYWithColors(std::string filename,
 	unsigned int* faces, unsigned int faceNum,
 	glm::vec3* positions, glm::vec3* normals, const unsigned char* colors,
-	glm::vec3* colorMap, unsigned int pointNum, unsigned char removedColor);
+	glm::vec3* colorMap, unsigned int pointNum, Bitmask visibility);

@@ -92,16 +92,18 @@ string findFilenameVariation(string filepath) {
 			filepath.erase(splitPos, to_string(counter - 1).size());
 			filepath.insert(splitPos, to_string(counter));
 		}
+		fclose(f);
 		errno_t err = fopen_s(&f, filepath.c_str(), "r");
 		counter++;
 	}
+
 
 	return filepath;
 }
 
 
 bool saveVolume(std::string saveFileName, std::string objName, const unsigned char* colors, int pointNum) {
-	std::ofstream f(saveFileName.c_str());
+	std::ofstream f(saveFileName.c_str(), ios::binary);
 	if (!f.is_open()) {
 		printf("VolumeIO::saveVolume - File %s could not be opened\n", saveFileName.c_str());
 		return false;
@@ -110,7 +112,7 @@ bool saveVolume(std::string saveFileName, std::string objName, const unsigned ch
 	f << objName.c_str() << endl;
 
 	for (int i = 0; i < pointNum; i++) {
-		f << colors[i];
+		f << char(colors[i]);
 	}
 
 	printf("pointNum = %d\n", pointNum);
@@ -127,7 +129,7 @@ bool loadVolume(std::string saveFileName, MeshInfoLoader* minfo, std::vector<uns
 	const int BUFFER_SIZE = 1024;
 	char buffer[BUFFER_SIZE];
 	f.getline(buffer, BUFFER_SIZE);
-	unsigned char value;
+	char value;
 	while (f >> value) {
 		colors->push_back(value);
 	}
@@ -190,7 +192,7 @@ std::vector<glm::vec3> colorMapLoader(std::string colorFileName) {
 std::string createPLYWithColors(std::string filename, 
 	unsigned int* faces, unsigned int faceNum,
 	glm::vec3* positions, glm::vec3* normals, const unsigned char* colors, 
-	glm::vec3* colorMap, unsigned int pointNum, unsigned char removedColor)
+	glm::vec3* colorMap, unsigned int pointNum, Bitmask visibility)
 {
 	std::filebuf fb;
 	fb.open(filename, std::ios::out | std::ios::binary);
@@ -204,7 +206,7 @@ std::string createPLYWithColors(std::string filename,
 		unsigned int v_b = faces[3 * i + 1];
 		unsigned int v_c = faces[3 * i + 2];
 
-		if (colors[v_a] != removedColor || colors[v_b] != removedColor || colors[v_c] != removedColor) {
+		if (!visibility.test(colors[v_a]) || !visibility.test(colors[v_b]) || !visibility.test(colors[v_c])) {
 			newFaces.push_back(v_a);
 			newFaces.push_back(v_b);
 			newFaces.push_back(v_c);

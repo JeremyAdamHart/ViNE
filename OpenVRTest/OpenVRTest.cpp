@@ -4,12 +4,32 @@
 #include "VRWindow.h"
 #include <string>
 #include <iostream>
+#include <fstream>
 
 #include "ConvexHull.h"
 
 
 int main(int argc, char** argv)
 {
+	using namespace std;
+	vector<unsigned char> colors = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+
+	ofstream f("test.txt", ios::binary);
+	if (!f.is_open()) {
+		printf("Could not open\n");
+		return 1;
+	}
+
+	f << "Start" << endl;
+
+	for (int i = 0; i < colors.size(); i++) {
+		f << char(colors[i]);
+	}
+
+	f.close();
+
+
+
 	SlotMap<int> map;
 
 	SlotMap<int>::Index a = map.add(1);
@@ -31,7 +51,7 @@ int main(int argc, char** argv)
 	halfEdgeToFaceList(&points, &indices, mesh);
 	*/
 
-	WindowManager wm(800, 400, "VR Segmenting");
+	WindowManager wm(926, 1028, "VR Segmenting");
 	char* loadFilename = "icosahedron.ply";	//"untrackedmodels/riccoSurface_take3.obj";	//"models/dragon.obj";
 	char* saveFilename = "saved/default.clr";
 	int multisampling = 4;
@@ -39,12 +59,18 @@ int main(int argc, char** argv)
 	case 1:
 		//Change to ricco
 		//loadFilename = "saved/stitchedslicesBlueTraced.clr";
+		//loadFilename = "saved/GerberaBackwardsVeins.clr";
+		//loadFilename = "saved/IsolatedVeinColored.clr";
 		//loadFilename = "untrackedmodels/Helianthus.ply";
-		loadFilename = "untrackedmodels/dragon.ply";
+		//loadFilename = "untrackedmodels/dragon.ply";
 		//loadFilename = "saved/stitchedslices1_3000x3000x982_gaussian-1.5_Iso-21850.clr";
 		//loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
-		//loadFilename = "saved/Helianthus2.clr";
-		//loadFilename = "saved/default.clr";
+		//loadFilename = "saved/Helianthus2Vein.clr";
+		loadFilename = "saved/default.clr";
+		loadFilename = "saved/GerberaNoHair.clr";
+		//loadFilename = "saved/Craspedia.clr";
+		//loadFilename = "saved/Florets3Sectors.clr";
+		//loadFilename = "saved/FloretsMarked.clr";
 		saveFilename = "saved/default.clr";
 		break;
 	case 2:
