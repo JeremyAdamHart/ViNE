@@ -65,12 +65,15 @@ int main(int argc, char** argv)
 		//loadFilename = "untrackedmodels/dragon.ply";
 		//loadFilename = "saved/stitchedslices1_3000x3000x982_gaussian-1.5_Iso-21850.clr";
 		//loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
-		//loadFilename = "saved/Helianthus2Vein.clr";
-		loadFilename = "saved/default.clr";
-		loadFilename = "saved/GerberaNoHair.clr";
+		loadFilename = "saved/Helianthus2Vein.clr";
+		//loadFilename = "saved/Helianthus2.clr";
+		//loadFilename = "saved/default.clr";
+		//loadFilename = "saved/lineendings.clr";
+		//loadFilename = "saved/GerberaNoHair.clr";
 		//loadFilename = "saved/Craspedia.clr";
 		//loadFilename = "saved/Florets3Sectors.clr";
 		//loadFilename = "saved/FloretsMarked.clr";
+		//loadFilename = "saved/default.clr";	//"untrackedmodels/Sample3_q00iso115.ply";
 		saveFilename = "saved/default.clr";
 		break;
 	case 2:

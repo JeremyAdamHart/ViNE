@@ -1,0 +1,106 @@
+{
+	"default_bindings": [
+		{
+			"controller_type": "knuckles",
+			"binding_url": "knuckles_controller.json"
+		},
+		{
+			"controller_type": "index_controller",
+			"binding_url": "knuckles_controller.json"
+		}
+	],
+  "actions": [
+    {
+      "name": "/actions/vine/in/grab_left",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/vine/in/grab_right",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/vine/in/paint_left",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/vine/in/paint_right",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/vine/in/sphere_display",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/vine/out/color_display",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/undo",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/redo",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/color_select",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/toggle_visibility",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/screenshot",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/sphere_size",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/sphere_size_touch",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/in/save_view",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/vine/out/haptics_left",
+      "type": "vibration"
+    }
+    {
+      "name": "/actions/vine/out/haptics_right",
+      "type": "vibration"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/vine",
+      "usage":  "leftright"
+    }
+  ],
+	"localization": [
+		{
+      "language_tag": "en_US",
+      "/actions/vine/":  "Sample actions",
+			"/actions/vine/in/grab_left": "Grab left",
+			"/actions/vine/in/grab_right": "Grab right",
+			"/actions/vine/in/paint_left": "Paint left",
+			"/actions/vine/in/paint_right": "Paint right",
+			"/actions/vine/in/sphere_display": "Display sphere",
+			"/actions/vine/in/color_display": "Colorwheel display",
+			"/actions/vine/in/undo": "Undo",
+			"/actions/vine/in/redo": "Redo",
+			"/actions/vine/in/color_select": "Colorwheel display",
+			"/actions/vine/in/toggle_visibility": "Colorwheel display",
+			"/actions/vine/in/screenshot": "Take screenshot",
+			"/actions/vine/in/sphere_size": "Sphere size",
+			"/actions/vine/in/sphere_size_touch": "Sphere size touch",
+			"/actions/vine/in/save_view": "Save view",
+			"/actions/vine/out/haptics_left": "Left haptics",
+			"/actions/vine/out/haptics_right": "Right haptics"
+		}
+	]
+}

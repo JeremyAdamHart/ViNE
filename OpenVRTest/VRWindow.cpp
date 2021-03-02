@@ -599,6 +599,27 @@ void setControllerBindingsOculusTouch(VRControllerInterface *input, VRController
 	}
 }
 
+void setControllerBindingsIndex(VRControllerInterface *input, VRControllerHand hand) {
+	printf("Using Index Bindings\n");
+	input->assignButton(VRSceneTransform::TRANSFORM_CONTROL, vr::k_EButton_Grip);
+	input->assignAxis(PAINT_CONTROL, vr::k_EButton_SteamVR_Trigger);
+	if (hand == VRControllerHand::LEFT) {
+		input->assignButton(UNDO_CONTROL, vr::k_EButton_IndexController_B);
+		input->assignAxis(COLOR_SELECT_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignTouch(COLOR_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignButton(TOGGLE_VISIBILITY_CONTROL, vr::k_EButton_SteamVR_Trigger);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
+
+	}
+	else {
+		input->assignButton(REDO_CONTROL, vr::k_EButton_IndexController_B);
+		input->assignAxis(SPHERE_SIZE_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+		input->assignTouch(SPHERE_DISPLAY_CONTROL, vr::k_EButton_IndexController_JoyStick);
+		input->assignButton(SPHERE_DISPLAY_CONTROL, vr::k_EButton_SteamVR_Trigger);
+		input->assignTouch(SPHERE_SIZE_TOUCH_CONTROL, vr::k_EButton_SteamVR_Touchpad);
+	}
+}
+
 void setControllerBindingsVive(VRControllerInterface *input, VRControllerHand hand) {
 	input->assignButton(VRSceneTransform::TRANSFORM_CONTROL, vr::k_EButton_Grip);
 	input->assignAxis(PAINT_CONTROL, vr::k_EButton_SteamVR_Trigger);
@@ -651,6 +672,9 @@ void setBindings(VRControllerType type, VRControllerInterface *interface, VRCont
 	else if (type == VRControllerType::WINDOWS) {
 		setControllerBindingsWindows(interface, hand);
 	}
+	else if (type == VRControllerType::INDEX) {
+		setControllerBindingsIndex(interface, hand);
+	}
 	else {
 		printf("Error: Unknown controller model - Using Vive controls as default\n");
 		setControllerBindingsVive(interface, hand);
@@ -679,6 +703,11 @@ struct ControllerReferenceFilepaths {
 			trackpadFrame = "models/OculusTouchTrackpadFrameLeft.obj";
 			drawPosition = "models/OculusTouchDrawPosition.obj";
 			grabPosition = "models/OculusTouchGrabPosition.obj";
+			break;
+		case VRControllerType::INDEX:
+			trackpadFrame = "models/IndexTrackpadFrame.obj";
+			drawPosition = "models/IndexDrawPosition.obj";
+			grabPosition = "models/IndexGrabPosition.obj";
 			break;
 		}
 	}
@@ -854,6 +883,10 @@ class MarchingCubeBPShader : public ShaderT<ShadedMat, ColorMat> {
 	glUseProgram(0);
 	}
 };
+
+glm::vec3 flipX(glm::vec3 vec) {
+	return vec3(-vec.x, vec.y, vec.z);
+}
 
 void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, int sampleNumber) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
@@ -1066,7 +1099,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 
 	//Draw position
 	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
-	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
+	vec3 drawPositionModelspace[2] = { drawPositionObj.vertices[0], flipX(drawPositionObj.vertices[0]) };
 
 	//Grab position
 	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
@@ -1260,6 +1293,9 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 			released_TrackpadRadius = true;
 		}
 
+		if (displayColorWheel)
+			displaySphere[0] = false;
+
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
 			drawables[i].setOrientation(sceneTransform.getOrientationQuat());
@@ -1271,7 +1307,7 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < 2; i++) {
 			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)){
-				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
+				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace[i], 1.f)); // TODO: write better code
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				float searchRadius = drawRadius / sceneTransform.scale;
@@ -1310,8 +1346,8 @@ void WindowManager::paintingLoop(const char* loadedFile, const char* savedFile, 
 		colorWheel.orientation = controllers[0].orientation;
 
 		//Update sphere positions
-		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
-		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
+		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace[0], 1.f));	//controllers[0].position;
+		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace[1], 1.f));	//controllers[1].position;
 
 		//Update bounding sphere on model and find fog bounds
 		float closestPoint = std::numeric_limits<float>::max();
@@ -1760,7 +1796,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 
 	//Draw position
 	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
-	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
+	vec3 drawPositionModelspace[2] = { drawPositionObj.vertices[0], flipX(drawPositionObj.vertices[0]) };
 
 	//Grab position
 	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
@@ -1864,7 +1900,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 			printf("Saving colored ply\n");
 			createPLYWithColors("coloredModel.ply", minfo.indices.data(), minfo.indices.size() / 3, minfo.vertices.data(), minfo.normals.data(),
 				reinterpret_cast<unsigned char*>(streamGeometry->vboPointer<COLOR>()), colorSet.data(), minfo.vertices.size(), colorSetMat->visibility );
-		}
+	                                                       	}
 		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_RELEASE)
 			saveColoredPLYButton = false;
 
@@ -1972,7 +2008,7 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < 2; i++) {
 			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)) {
-				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
+				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace[i], 1.f)); // TODO: write better code
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				float searchRadius = drawRadius / sceneTransform.scale;
@@ -2015,8 +2051,8 @@ void WindowManager::paintingLoopIndexed(const char* loadedFile, const char* save
 		colorWheel.orientation = controllers[0].orientation;
 
 		//Update sphere positions
-		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
-		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
+		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace[0], 1.f));	//controllers[0].position;
+		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace[1], 1.f));	//controllers[1].position;
 
 		pushDebugGroup("Distance to convex hull");
 		//Update bounding sphere on model and find fog bounds
@@ -2540,6 +2576,60 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 	printf("Drawing thread finished\n");
 }
 //*/
+
+
+
+struct Bindings {
+	vr::VRActionSetHandle_t actionSet;
+
+	vr::VRActionHandle_t grab[2] = { 0, 0 };
+	vr::VRActionHandle_t paint[2] = { 0, 0 };
+	vr::VRActionHandle_t haptics[2] = { 0, 0 };
+	vr::VRActionHandle_t sphereDisplay = 0;
+	//Left hand
+	vr::VRActionHandle_t undo = 0;
+	vr::VRActionHandle_t colorDisplay = 0;
+	vr::VRActionHandle_t colorSelect = 0;
+	vr::VRActionHandle_t toggleVisibility = 0;
+	vr::VRActionHandle_t screenshot = 0;
+
+	//Right hand
+	vr::VRActionHandle_t paintRight = 0;
+	vr::VRActionHandle_t redo = 0;
+	vr::VRActionHandle_t sphereSize = 0;
+	vr::VRActionHandle_t sphereSizeTouch = 0;
+	vr::VRActionHandle_t saveView = 0;
+};
+
+Bindings setBindings(const char* filepath) {
+	Bindings b;
+
+	setActionPath(filepath);
+	b.actionSet = getActionSetHandle("/actions/vine");
+
+	b.grab[int(VRControllerHand::LEFT)] = getActionHandle("/actions/vine/in/grab_left");
+	b.grab[int(VRControllerHand::RIGHT)] = getActionHandle("/actions/vine/in/grab_right");
+
+	b.paint[int(VRControllerHand::LEFT)] = getActionHandle("/actions/vine/in/paint_left");
+	b.paint[int(VRControllerHand::RIGHT)] = getActionHandle("/actions/vine/in/paint_right");
+
+	b.paint[int(VRControllerHand::LEFT)] = getActionHandle("/actions/vine/in/haptics_left");
+	b.paint[int(VRControllerHand::RIGHT)] = getActionHandle("/actions/vine/in/haptics_right");
+
+	b.sphereDisplay = getActionHandle("/action/vine/in/sphere_display");
+	b.colorDisplay = getActionHandle("/action/vine/in/color_display");
+	b.colorSelect = getActionHandle("/action/vine/in/color_select");
+	b.undo = getActionHandle("/action/vine/in/undo");
+	b.redo = getActionHandle("/action/vine/in/redo");
+	b.toggleVisibility = getActionHandle("/action/vine/in/toggle_visibility");
+	b.screenshot = getActionHandle("/action/vine/in/screenshot");
+	b.sphereSize = getActionHandle("/action/vine/in/sphere_size");
+	b.sphereSizeTouch = getActionHandle("/action/vine/in/sphere_size_touch");
+	b.saveView = getActionHandle("/action/vine/in/save_view");
+
+	return b;
+}
+
 void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* savedFile, int sampleNumber) {
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
@@ -2663,8 +2753,10 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 	VRController *controllers = devices.controllers;
 	VRControllerType controllerType = controllers[0].type;
 
-	setBindings(controllerType, &controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
-	setBindings(controllerType, &controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
+	//setBindings(controllerType, &controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
+	//setBindings(controllerType, &controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
+
+	Bindings input = setBindings("./vine_actions.json");
 
 	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllerType == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
 
@@ -2759,7 +2851,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 	//Draw position
 	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
-	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
+	vec3 drawPositionModelspace[2] = { drawPositionObj.vertices[0], flipX(drawPositionObj.vertices[0]) };
 
 	//Grab position
 	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
@@ -2841,6 +2933,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		updateActionSet(input.actionSet);
 
 		pushDebugGroup("Client frame");
 
@@ -3019,7 +3113,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < 2; i++) {
 			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)) {
-				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
+				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace[i], 1.f)); // TODO: write better code
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				
@@ -3034,6 +3128,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 				displaySphere[i] = true;		//TODO get rid of?
 			}
 		}
+
+		displaySphere[0] = (displayColorWheel) ? false : displaySphere[0];
 
 		static bool undoButtonPressed = false;
 		bool pressed = controllers[0].input.getActivation(UNDO_CONTROL);
@@ -3078,8 +3174,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		colorWheel.orientation = controllers[0].orientation;
 
 		//Update sphere positions
-		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
-		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
+		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace[0], 1.f));	//controllers[0].position;
+		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace[1], 1.f));	//controllers[1].position;
 
 		pushDebugGroup("Distance to convex hull");
 		//Update bounding sphere on model and find fog bounds
@@ -3573,7 +3669,7 @@ void WindowManager::paintingLoopMT(const char* loadedFile, const char* savedFile
 
 	//Draw position
 	MeshInfoLoader drawPositionObj(controllerPath.drawPosition);
-	vec3 drawPositionModelspace = drawPositionObj.vertices[0];
+	vec3 drawPositionModelspace[2] = {drawPositionObj.vertices[0], flipX(drawPositionObj.vertices[0]) };
 
 	//Grab position
 	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
@@ -3825,7 +3921,7 @@ void WindowManager::paintingLoopMT(const char* loadedFile, const char* savedFile
 		vector<IndexVec3> neighbours;
 		for (int i = 0; i < 2; i++) {
 			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)) {
-				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace, 1.f)); // TODO: write better code
+				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace[i], 1.f)); // TODO: write better code
 				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 
@@ -3884,8 +3980,8 @@ void WindowManager::paintingLoopMT(const char* loadedFile, const char* savedFile
 		colorWheel.orientation = controllers[0].orientation;
 
 		//Update sphere positions
-		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[0].position;
-		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace, 1.f));	//controllers[1].position;
+		drawingSphere[0].position = vec3(controllers[0].getTransform()*vec4(drawPositionModelspace[0], 1.f));	//controllers[0].position;
+		drawingSphere[1].position = vec3(controllers[1].getTransform()*vec4(drawPositionModelspace[1], 1.f));	//controllers[1].position;
 
 		pushDebugGroup("Distance to convex hull");
 		//Update bounding sphere on model and find fog bounds

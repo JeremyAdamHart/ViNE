@@ -56,7 +56,7 @@ void main(void)
 
 	//	float fogAmount = 1- exp(-length(viewPosition - WorldPosition)/fogDist); 
 	//	float fogAmount = 0.f;	//1- pow(2.71828, -max(length(viewPosition[gl_ViewportIndex] - WorldPosition) - fogDist, 0.f)/fogScale);
-	 	float fogAmount = fogModel(fogDist, fogScale, viewPosition[gl_ViewportIndex] - WorldPosition);
+	 	float fogAmount = 0.f;	//fogModel(fogDist, fogScale, viewPosition[gl_ViewportIndex] - WorldPosition);
 	 	color = fogAmount*fogColor + (1-fogAmount)*color;
 
 	    // write colour output without modification

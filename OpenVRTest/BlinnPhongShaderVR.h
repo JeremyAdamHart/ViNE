@@ -61,7 +61,7 @@ public:
 		glUniformMatrix4fv(uniformLocations[M_MATRIX_LOCATION], 1, false, &m_matrix[0][0]);
 		glUniform3fv(uniformLocations[CAMERA_POS_LOCATION], 2, &camera_pos[0][0]);
 		glUniform3f(uniformLocations[LIGHT_POS_LOCATION],
-			lightPos.x, lightPos.y, lightPos.z);
+			lightPos. x, lightPos.y, lightPos.z);
 		obj.getGeometry().drawGeometry(programID);
 		glUseProgram(0);
 	}

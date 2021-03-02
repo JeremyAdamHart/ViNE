@@ -128,9 +128,9 @@ bool loadVolume(std::string saveFileName, MeshInfoLoader* minfo, std::vector<uns
 
 	const int BUFFER_SIZE = 1024;
 	char buffer[BUFFER_SIZE];
-	f.getline(buffer, BUFFER_SIZE);
+	f.getline(buffer, BUFFER_SIZE, '\n');
 	char value;
-	while (f >> value) {
+	while (f.read(&value, 1)){ //f >> value) {
 		colors->push_back(value);
 	}
 
