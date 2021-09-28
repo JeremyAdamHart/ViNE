@@ -23,14 +23,20 @@ uniform vec3 colors [MAX_COLOR_NUM];
 uniform uint visibility [MAX_COLOR_NUM/32 + 1];
 const vec3 otherColors[2] = vec3[2](vec3(1, 0, 0), vec3(0, 1, 0));
 
+uniform vec3 planeOrigin = vec3(0, 0, 0);
+uniform vec3 planeNormal = vec3(0, 0, 0);
+
 void main()
 {
 	WorldNormal = (model_matrix*vec4(VertexNormal, 0.0)).xyz;
 	WorldPosition = (model_matrix*vec4(VertexPosition, 1.0)).xyz;
 
 	float alpha;
-	if((visibility[0] & (uint(1) << VertexColorIndex)) > 0)
+	if((visibility[0] & (uint(1) << VertexColorIndex)) > 0 || 
+		dot((VertexPosition - planeOrigin), planeNormal) > 0.0)
+	{
 		alpha = 0.0;
+	}
 	else
 		alpha = 1.f;
 

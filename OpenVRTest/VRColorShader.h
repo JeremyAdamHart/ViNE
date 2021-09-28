@@ -24,7 +24,8 @@ public:
 	void draw(const Camera &leftCam, const Camera &rightCam, glm::vec3 lightPos,
 		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
 	void drawNew(const Camera &leftCam, const Camera &rightCam, glm::vec3 lightPos,
-		float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj);
+		float fogScale, float fogDistance, glm::vec3 fogColor, 
+		glm::vec3 planeOrigin, glm::vec3 planeNormal, Drawable &obj);
 };
 
 

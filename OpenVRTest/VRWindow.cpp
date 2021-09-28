@@ -6,6 +6,7 @@ using namespace glm;
 using namespace std;
 
 #include "Drawable.h"
+#include "CommonGeometry.h"
 
 #include "SimpleShader.h"
 #include "simpleTexShader.h"
@@ -2271,9 +2272,11 @@ glfwPollEvents();
 struct StateInfo {
 	enum {
 		UNDO = 0,
-		REDO
+		REDO,
+		PLANE_SEGMENT
 	};
 	std::vector<glm::vec3> controllerPositions;			//Only lists controllers with draw button pressed
+	std::vector<glm::quat> controllerOrientations;
 	int action;		//Undo, redo or release
 	size_t timestamp;
 
@@ -2283,7 +2286,7 @@ struct StateInfo {
 	Bitmask visibility;
 
 	StateInfo(size_t timestamp = 0) :action(-1), timestamp(timestamp), shouldClose(false) {}
-	StateInfo(std::vector<glm::vec3> controllerPositions, unsigned char drawColor, float scaledDrawRadius, size_t timestamp)
+	StateInfo(std::vector<glm::vec3> controllerPositions, std::vector<glm::quat> controllerOrientations, unsigned char drawColor, float scaledDrawRadius, size_t timestamp)
 		:controllerPositions(controllerPositions), action(-1), timestamp(timestamp), drawColor(drawColor),
 		scaledDrawRadius(scaledDrawRadius), shouldClose(false) {}
 	StateInfo(int action, size_t actionTimestamp, size_t timestamp) :action(action), timestamp(timestamp), shouldClose(false) {}
@@ -2464,6 +2467,8 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 	float lastRadius = 0.f;
 	std::vector<glm::vec3> lastPositions;		//Initial position well outside range
 	int lastColor = -1;
+	vec3 planePosition = vec3(0.f);
+	vec3 planeNormal = vec3(0.f);
 
 	undoStack.startNewState();
 
@@ -2472,10 +2477,9 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 		StateInfo currentState = *stateInfo.getRead();
 		programStopped = currentState.shouldClose;
 		if (currentState.timestamp > lastHostTimestamp) {
-			//printf("-----Start loop %d-----\n", currentState.timestamp);
 			lastHostTimestamp = currentState.timestamp;
 			//PAINTING
-			{
+			if(currentState.action != StateInfo::PLANE_SEGMENT){
 				std::vector<IndexVec3> neighbours;
 				for (vec3 controller : currentState.controllerPositions) {
 					vec3 pos = controller;
@@ -2564,12 +2568,45 @@ void paintingThreadFuncPinned(std::vector<vec3>& positions, Resource<StateInfo, 
 				//newChangedRange.end = 10;
 			}
 
-			//changedRange
-			lastTimestamp++;
-			//printf("-----End loop-----\n");
+			//PLANE SEGMENT
+			if (currentState.action == StateInfo::PLANE_SEGMENT) {
+				{
+					printf("Plane segmentation\n");
+					auto readResource = colors->getRead();
+					//Need a check for controller orientations
+					vec3 planeDirection = glm::mat3_cast(currentState.controllerOrientations[0])
+										  *vec3(-1, 0, 0);
+					vec3 planeOrigin = currentState.controllerPositions[0];
+					//for (int i = 0; i < positions.size(); i++) {
+					//	vec3 vectorToVertex = positions[i] - planeOrigin;
+					for(auto vi : vertIndexPair){
+						vec3 vectorToVertex = vi.point - planeOrigin;
+						int i = vi.index;
+						if (dot(planeDirection, vectorToVertex) > 0.0) {
+							undoStack.modify(i,
+								currentState.drawColor,
+								readResource->get<Pinned<ColorIndex>>(),
+								currentState.visibility);
+						
+							//writeResource->get<Pinned<ColorIndex>>()[i] = currentState.drawColor;
+						}
+					}
+				}
+
+				printf("Update changes\n");
+
+				auto changeMap = undoStack.getLastState();
+				for (int i = 0; i < 3; i++) {
+					auto writeResource = colors->getWriteSpecific(i, std::chrono::microseconds(100));
+					for (const auto& iv : changeMap)
+						writeResource->get<Pinned<ColorIndex>>()[iv.first] = iv.second.newValue;
+				}
+
+				undoStack.startNewState();
+			}
 		}
 		else {
-			std::this_thread::sleep_for(std::chrono::microseconds(100));
+			std::this_thread::sleep_for(std::chrono::microseconds(10));
 		}
 	}
 
@@ -2585,7 +2622,7 @@ struct Bindings {
 	vr::VRActionHandle_t grab[2] = { 0, 0 };
 	vr::VRActionHandle_t paint[2] = { 0, 0 };
 	vr::VRActionHandle_t haptics[2] = { 0, 0 };
-	vr::VRActionHandle_t sphereDisplay = 0;
+	vr::VRActionHandle_t sphereDisplay[2] = { 0, 0 };
 	//Left hand
 	vr::VRActionHandle_t undo = 0;
 	vr::VRActionHandle_t colorDisplay = 0;
@@ -2594,11 +2631,14 @@ struct Bindings {
 	vr::VRActionHandle_t screenshot = 0;
 
 	//Right hand
-	vr::VRActionHandle_t paintRight = 0;
 	vr::VRActionHandle_t redo = 0;
 	vr::VRActionHandle_t sphereSize = 0;
 	vr::VRActionHandle_t sphereSizeTouch = 0;
 	vr::VRActionHandle_t saveView = 0;
+
+	//Plane cutting
+	vr::VRActionHandle_t showPlane = 0;
+	vr::VRActionHandle_t planeSegment = 0;
 };
 
 Bindings setBindings(const char* filepath) {
@@ -2613,24 +2653,29 @@ Bindings setBindings(const char* filepath) {
 	b.paint[int(VRControllerHand::LEFT)] = getActionHandle("/actions/vine/in/paint_left");
 	b.paint[int(VRControllerHand::RIGHT)] = getActionHandle("/actions/vine/in/paint_right");
 
-	b.paint[int(VRControllerHand::LEFT)] = getActionHandle("/actions/vine/in/haptics_left");
-	b.paint[int(VRControllerHand::RIGHT)] = getActionHandle("/actions/vine/in/haptics_right");
+	b.haptics[int(VRControllerHand::LEFT)] = getActionHandle("/actions/vine/in/haptics_left");
+	b.haptics[int(VRControllerHand::RIGHT)] = getActionHandle("/actions/vine/in/haptics_right");
 
-	b.sphereDisplay = getActionHandle("/action/vine/in/sphere_display");
-	b.colorDisplay = getActionHandle("/action/vine/in/color_display");
-	b.colorSelect = getActionHandle("/action/vine/in/color_select");
-	b.undo = getActionHandle("/action/vine/in/undo");
-	b.redo = getActionHandle("/action/vine/in/redo");
-	b.toggleVisibility = getActionHandle("/action/vine/in/toggle_visibility");
-	b.screenshot = getActionHandle("/action/vine/in/screenshot");
-	b.sphereSize = getActionHandle("/action/vine/in/sphere_size");
-	b.sphereSizeTouch = getActionHandle("/action/vine/in/sphere_size_touch");
-	b.saveView = getActionHandle("/action/vine/in/save_view");
+	b.sphereDisplay[int(VRControllerHand::LEFT)] = getActionHandle("/actions/vine/in/sphere_display_left");
+	b.sphereDisplay[int(VRControllerHand::RIGHT)] = getActionHandle("/actions/vine/in/sphere_display_right");
+	b.colorDisplay = getActionHandle("/actions/vine/in/color_display");
+	b.colorSelect = getActionHandle("/actions/vine/in/color_select");
+	b.undo = getActionHandle("/actions/vine/in/undo");
+	b.redo = getActionHandle("/actions/vine/in/redo");
+	b.toggleVisibility = getActionHandle("/actions/vine/in/toggle_visibility");
+	b.screenshot = getActionHandle("/actions/vine/in/screenshot");
+	b.sphereSize = getActionHandle("/actions/vine/in/sphere_size");
+	b.sphereSizeTouch = getActionHandle("/actions/vine/in/sphere_size_touch");
+	b.saveView = getActionHandle("/actions/vine/in/save_view");
+
+	b.showPlane = getActionHandle("/actions/vine/in/show_plane");
+	b.planeSegment = getActionHandle("/actions/vine/in/plane_segment");
 
 	return b;
 }
 
-void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* savedFile, int sampleNumber) {
+void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* savedFile, int sampleNumber) 
+{
 	glfwSetCursorPosCallback(window, cursorPositionCallback);
 	glfwSetWindowSizeCallback(window, windowResizeCallback);
 
@@ -2747,16 +2792,28 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 	Viewport leftEyeView(window_width, window_height);
 	Viewport rightEyeView(window_width / 2, window_height, window_width / 2);
 
+	Bindings input = setBindings("./vine_actions.json");
+	//vr::InputDigitalActionData_t actionData;
+	//vr::IVRInput::GetDigitalActionData(input.grab[0], actionData, )
+	std::map<VRControllerHand, int> controllerHandMap;
+	vr::VRInputValueHandle_t inputSource;
+	vr::InputOriginInfo_t inputOrigin;
+	vr::VRInput()->GetInputSourceHandle("/user/hand/left", &inputSource);
+	vr::VRInput()->GetOriginTrackedDeviceInfo(inputSource, &inputOrigin, sizeof(inputOrigin));
+	controllerHandMap[VRControllerHand::LEFT] = inputOrigin.trackedDeviceIndex;
+
+	vr::VRInput()->GetInputSourceHandle("/user/hand/right", &inputSource);
+	vr::VRInput()->GetOriginTrackedDeviceInfo(inputSource, &inputOrigin, sizeof(inputOrigin));
+	controllerHandMap[VRControllerHand::RIGHT] = inputOrigin.trackedDeviceIndex;
+
 	//Parse tracked devices
 	printf("Controller creation\n");
-	VRDeviceManager<VRCameraController, VRController> devices(vrContext.vrSystem, &tm);
+	VRDeviceManager<VRCameraController, VRController> devices(vrContext.vrSystem, &tm, controllerHandMap);
 	VRController *controllers = devices.controllers;
 	VRControllerType controllerType = controllers[0].type;
 
 	//setBindings(controllerType, &controllers[VRControllerHand::LEFT].input, VRControllerHand::LEFT);
 	//setBindings(controllerType, &controllers[VRControllerHand::RIGHT].input, VRControllerHand::RIGHT);
-
-	Bindings input = setBindings("./vine_actions.json");
 
 	bool controllerHasTrackpad = controllerType == VRControllerType::VIVE || controllerType == VRControllerType::WINDOWS || controllerType == VRControllerType::UNKNOWN;
 
@@ -2819,7 +2876,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		POSITION = 0, NORMAL, COLOR	//Attribute indices
 	};
 
-	constexpr bool USING_PINNED = false;
+	constexpr bool USING_PINNED = true;
 
 	auto mcGeometry = make<IndexGeometryUint<attrib::Position, attrib::Normal, attrib::ColorIndex>>();
 	auto mcGeometryPinned = make<MarchingCubesGeometry>(minfo.vertices.size());
@@ -2855,7 +2912,10 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 	//Grab position
 	MeshInfoLoader grabPositionObj(controllerPath.grabPosition);
-	vec3 grabPositionModelspace = grabPositionObj.vertices[0];
+	vec3 grabPositionModelspace[2] = {
+		grabPositionObj.vertices[0],
+		flipX(grabPositionObj.vertices[0])
+	};
 
 	//Trackpad geometry
 	printf("Color wheel drawable\n");
@@ -2931,6 +2991,11 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 	std::vector<StateAtDraw> stateAtDraw;
 	std::vector<StateAtDraw> replayState;
 
+	//PLANE CUTTING
+	Drawable planeDrawable(createPlaneGeometry(Orientation::PositiveX));
+	planeDrawable.addMaterial(new ShadedMat(0.5, 0.4, 0.1, 10.f));
+	planeDrawable.addMaterial(colorSetMat);
+
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -2991,11 +3056,11 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		const float MIN_TILT = (controllerHasTrackpad) ? 0.3f : 0.1f;	//Minimum offset from center for trackpads and joysticks
 
 		//Change color based on axis
-		if (controllers[VRControllerHand::LEFT].input.getActivation(COLOR_DISPLAY_CONTROL) ||
+		if (getBool(input.colorDisplay) ||
 			(!controllerHasTrackpad &&
-				length(controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL)) > MIN_TILT))
+				length(getAxis(input.colorSelect)) > MIN_TILT))
 		{
-			vec2 axis = controllers[VRControllerHand::LEFT].input.getAxis(COLOR_SELECT_CONTROL);
+			vec2 axis = getAxis(input.colorSelect);
 			displayColorWheel = true;
 			colorWheel.thumbPos(axis);
 			if (controllerHasTrackpad || length(axis) > MIN_TILT) {
@@ -3003,13 +3068,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 				sphereColorMat->color = vec4(colorSet[drawColor], sphereTransparency);
 				colorWheel.selectColor(drawColor);
 
-				static bool togglePressed = false;
-				if (controllers[VRControllerHand::LEFT].input.getActivation(TOGGLE_VISIBILITY_CONTROL) && !togglePressed) {
+				if (getActivation(input.toggleVisibility))
 					colorSetMat->visibility.toggle(drawColor);
-					togglePressed = true;
-				}
-				else if (!controllers[VRControllerHand::LEFT].input.getActivation(TOGGLE_VISIBILITY_CONTROL))
-					togglePressed = false;
 			}
 		}
 		else {
@@ -3023,12 +3083,12 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		const float MAX_DRAW_RADIUS = 0.2f;
 
 
-		if ((controllers[VRControllerHand::RIGHT].input.getActivation(SPHERE_SIZE_TOUCH_CONTROL)
-			+ (length(controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL)) > MIN_TILT)
+		if ((getBool(input.sphereSizeTouch) 
+			+ (length(getAxis(input.sphereSize)) > MIN_TILT)
 			+ (!controllerHasTrackpad)) >= 2)
 		{
 
-			vec2 axis = controllers[VRControllerHand::RIGHT].input.getAxis(SPHERE_SIZE_CONTROL);
+			vec2 axis = getAxis(input.sphereSize);
 			float currentAngle = atan2(axis.y, axis.x);
 
 			if (controllerHasTrackpad) {
@@ -3067,7 +3127,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 		glPopDebugGroup();	//Query input
 
-		/////////////////
+		/*/////////////////
 		// Replay state
 		////////////////
 		if (replayState.size() > 0) {
@@ -3098,6 +3158,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 			replayState.pop_back();
 		}
+		*/
 		
 		//Update model
 		for (int i = 0; i < drawables.size(); i++) {
@@ -3111,44 +3172,51 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		//printf("-------Client %d-------\n", timestamp);
 		pushDebugGroup("Search neighbours");
 		vector<IndexVec3> neighbours;
+		mat4 invrsTrans = inverse(sceneTransform.getTransform());
 		for (int i = 0; i < 2; i++) {
-			if (controllers[i].input.getActivation(SPHERE_DISPLAY_CONTROL)) {
+			if (getBool(input.sphereDisplay[i])) {
 				vec3 pos = vec3(controllers[i].getTransform()*vec4(drawPositionModelspace[i], 1.f)); // TODO: write better code
-				mat4 invrsTrans = inverse(sceneTransform.getTransform());
 				pos = vec3(invrsTrans*vec4(pos, 1));
 				
 				paintingButtonPressed[i] = 
-					controllers[i].input.getScalar(PAINT_CONTROL) > 0.95f;
+					getScalar(input.paint[i]) > 0.95f;
 				if (paintingButtonPressed[i]) {
 					newStateInfo.controllerPositions.push_back(pos);
+					newStateInfo.controllerOrientations.push_back(controllers[i].getOrientationQuat());
 					newStateInfo.scaledDrawRadius = drawRadius / sceneTransform.scale;
 					newStateInfo.drawColor = drawColor;
 				}
-
 				displaySphere[i] = true;		//TODO get rid of?
 			}
 		}
 
+		//Update segmenting plane
+		static vec3 planeNormal = vec3(0.f);
+		static vec3 planePosition = vec3(0.f);
+		planeDrawable.setPosition(controllers[1].getTransform()
+			                      *vec4(drawPositionModelspace[0], 1.f));
+		planeDrawable.setOrientation(controllers[1].getOrientationQuat());
+		if (getBool(input.planeSegment)) {
+			//std::printf("PLANE SEGMENT PRESSED MAIN LOOP \n");
+			newStateInfo.controllerPositions.push_back(vec3(invrsTrans
+														*vec4(planeDrawable.getPos(), 1.f)));
+			newStateInfo.controllerOrientations.push_back(inverse(sceneTransform.getOrientationQuat())
+															*controllers[1].getOrientationQuat());
+			newStateInfo.drawColor = drawColor; //*/
+			planePosition = newStateInfo.controllerPositions[0];
+			planeNormal = mat3_cast(newStateInfo.controllerOrientations[0])*vec3(-1, 0, 0);
+			
+			//newStateInfo.action = StateInfo::PLANE_SEGMENT;
+		}
+
 		displaySphere[0] = (displayColorWheel) ? false : displaySphere[0];
 
-		static bool undoButtonPressed = false;
-		bool pressed = controllers[0].input.getActivation(UNDO_CONTROL);
-		if (pressed == false && undoButtonPressed) {
+		if(getActivation(input.undo))
 			newStateInfo.action = StateInfo::UNDO;
-			undoButtonPressed = false;
-		}
-		else if (pressed) {
-			undoButtonPressed = true;
-		}
-		static bool redoButtonPressed = false;
-		pressed = controllers[1].input.getActivation(REDO_CONTROL);
-		if (pressed == false && redoButtonPressed) {
+
+		if(getActivation(input.redo))
 			newStateInfo.action = StateInfo::REDO;
-			redoButtonPressed = false;
-		}
-		else if (pressed) {
-			redoButtonPressed = true;
-		}
+		
 		timestamp++;
 		newStateInfo.timestamp = timestamp;
 		newStateInfo.visibility = colorSetMat->visibility;
@@ -3202,7 +3270,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		float aspectRatio = float(SCREENSHOT_WIDTH) / float(SCREENSHOT_HEIGHT);
 		static bool screenshotPressed = false;
 		static bool writeScreenshot = false;
-		if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && !screenshotPressed) {
+		if (getBool(input.screenshot) && !screenshotPressed) {
 			printf("Screenshot pressed\n");
 			printf("aspect ratio %f\n", aspectRatio);
 			devices.hmd.rightEye.setProjectionMatrix(glm::perspective(radians(75.f), aspectRatio, 0.01f, 10.f));
@@ -3210,7 +3278,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			screenshotPressed = true;
 			writeScreenshot = true;
 		}
-		else if (controllers[VRControllerHand::LEFT].input.getActivation(SCREENSHOT_CONTROL) && screenshotPressed) {
+		else if (getBool(input.screenshot) && screenshotPressed) {
 			devices.hmd.setProjection(vrContext.vrSystem);
 			writeScreenshot = false;
 		}
@@ -3224,10 +3292,8 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			writeScreenshot = false;
 		}
 
-		//Load and save views
-		static bool saveViewPressed = false;
-		if (controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && !saveViewPressed) {
-			saveViewPressed = true;
+		//Save and load views
+		if (getActivation(input.saveView)){
 			string filename = findFilenameVariation("./views/" + std::string(loadedFile) + ".view");
 			vec3 cameraDir = vec3(devices.hmd.rightEye.getCameraMatrix()*vec4(0, 0, -1, 0));
 			VRView view;
@@ -3236,8 +3302,6 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			saveVRViewToFile(filename.c_str(), &view);
 
 		}
-		else if (!controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_VIEW_CONTROL) && saveViewPressed)
-			saveViewPressed = false;
 
 		static bool loadViewPressed = false;
 		int keyPressed = getNumberKeyPressed(window);
@@ -3258,7 +3322,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		////////////////////////
 		// Save/load draw sequence
 		////////////////////////
-		static bool savingState = false;
+		/*static bool savingState = false;
 		static bool saveStatePressed = false;
 		if (!saveStatePressed &&
 			controllers[VRControllerHand::RIGHT].input.getActivation(SAVE_DRAW_SEQUENCE))
@@ -3312,7 +3376,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		}
 		else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
 			loadStatePressed = false;
-
+			*/
 		////////////
 		// DRAWING
 		///////////
@@ -3333,9 +3397,17 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 			bpTexShader.draw(devices.hmd.leftEye, devices.hmd.rightEye, lightPos, controllers[i]);
 		for (int i = 0; i < drawables.size(); i++) {
 			colorShader.drawNew(devices.hmd.leftEye, devices.hmd.rightEye, lightPos,
-				fogScale, fogDistance,
-				vec3(0.02f, 0.04f, 0.07f), drawables[i]);		//Add lightPos and colorMat checking
+				fogScale, fogDistance, vec3(0.02f, 0.04f, 0.07f), 
+				planePosition, planeNormal, drawables[i]);		//Add lightPos and colorMat checking
 		}
+
+		//Segmenting plane
+		if (getBool(input.showPlane) && false) {
+			colorShader.drawNew(devices.hmd.leftEye, devices.hmd.rightEye, lightPos,
+				fogScale, fogDistance, vec3(0.02f, 0.04f, 0.07f), 
+				vec3(0.f), vec3(0.f), planeDrawable);		//Add lightPos and colorMat checking
+		}
+
 		if (displayColorWheel) {
 			colorWheelShader.draw(
 				devices.hmd.leftEye,
@@ -3385,11 +3457,16 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		//Get time
 		static double lastTime = 0.f;
 		double currentTime = glfwGetTime();
-		sceneTransform.updateTransform(
+		/*sceneTransform.updateTransform(
 			currentTime - lastTime,
 			controllers[VRControllerHand::LEFT],
 			controllers[VRControllerHand::RIGHT],
-			grabPositionModelspace);
+			grabPositionModelspace);*/
+		sceneTransform.updateTransformNew(currentTime - lastTime,
+			controllers[VRControllerHand::LEFT], grabPositionModelspace[0],
+			input.grab[VRControllerHand::LEFT],
+			controllers[VRControllerHand::RIGHT], grabPositionModelspace[1],
+			input.grab[VRControllerHand::RIGHT]);
 		lastTime = currentTime;
 
 		checkGLErrors("Buffer overflow?");

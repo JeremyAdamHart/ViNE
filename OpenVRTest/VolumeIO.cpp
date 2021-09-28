@@ -199,7 +199,7 @@ std::string createPLYWithColors(std::string filename,
 	std::ostream outstream(&fb);
 	if (outstream.fail()) throw std::runtime_error("failed to open " + string(filename));
 
-	//Remove deleted faces
+	std::vector<bool> keptVertices(pointNum, false);
 	std::vector<unsigned int> newFaces;
 	for (unsigned int i = 0; i < faceNum; i++) {
 		unsigned int v_a = faces[3 * i];
@@ -207,16 +207,42 @@ std::string createPLYWithColors(std::string filename,
 		unsigned int v_c = faces[3 * i + 2];
 
 		if (!visibility.test(colors[v_a]) || !visibility.test(colors[v_b]) || !visibility.test(colors[v_c])) {
-			newFaces.push_back(v_a);
-			newFaces.push_back(v_b);
-			newFaces.push_back(v_c);
+			keptVertices[v_a] = true;
+			keptVertices[v_b] = true;
+			keptVertices[v_c] = true;
+		}
+	}
+
+	std::map<unsigned int, unsigned int> indexMap;
+	std::vector<glm::vec3> newPositions;
+	std::vector<glm::vec3> newNormals;
+	std::vector<unsigned char> newColorIndices;
+	for (unsigned int i = 0; i < pointNum; i++) {
+		if (keptVertices[i]) {
+			indexMap[i] = newPositions.size();
+			newPositions.push_back(positions[i]);
+			newNormals.push_back(normals[i]);
+			newColorIndices.push_back(colors[i]);
+		}
+	}
+
+	//Remove deleted faces
+	for (unsigned int i = 0; i < faceNum; i++) {
+		unsigned int v_a = faces[3 * i];
+		unsigned int v_b = faces[3 * i + 1];
+		unsigned int v_c = faces[3 * i + 2];
+
+		if (!visibility.test(colors[v_a]) || !visibility.test(colors[v_b]) || !visibility.test(colors[v_c])) {
+			newFaces.push_back(indexMap[v_a]);
+			newFaces.push_back(indexMap[v_b]);
+			newFaces.push_back(indexMap[v_c]);
 		}
 	}
 
 	//Calculate colors
 	std::vector<unsigned char> newColors;
-	for (unsigned int i = 0; i < pointNum; i++) {
-		vec3 color = colorMap[colors[i]];
+	for (auto colorIndex : newColorIndices) {
+		vec3 color = colorMap[colorIndex];
 		newColors.push_back(color.x*255.f);
 		newColors.push_back(color.y*255.f);
 		newColors.push_back(color.z*255.f);
@@ -227,11 +253,11 @@ std::string createPLYWithColors(std::string filename,
 	PlyFile plyOutput;
 
 	plyOutput.add_properties_to_element("vertex", { "x", "y", "z" },
-		Type::FLOAT32, pointNum, reinterpret_cast<uint8_t*>(positions), Type::INVALID, 0);
+		Type::FLOAT32, newPositions.size(), reinterpret_cast<uint8_t*>(newPositions.data()), Type::INVALID, 0);
 	plyOutput.add_properties_to_element("vertex", { "nx", "ny", "nz" },
-		Type::FLOAT32, pointNum, reinterpret_cast<uint8_t*>(normals), Type::INVALID, 0);
+		Type::FLOAT32, newNormals.size(), reinterpret_cast<uint8_t*>(newNormals.data()), Type::INVALID, 0);
 	plyOutput.add_properties_to_element("vertex", { "red", "green", "blue" }, 
-		Type::UINT8, pointNum, newColors.data(), Type::INVALID, 0);
+		Type::UINT8, newColors.size(), newColors.data(), Type::INVALID, 0);
 	plyOutput.add_properties_to_element("face", { "vertex_indices" },
 		Type::UINT32, newFaces.size()/3, reinterpret_cast<uint8_t*>(newFaces.data()), Type::UINT8, 3);
 

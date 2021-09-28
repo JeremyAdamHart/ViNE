@@ -6,11 +6,51 @@
 #include <iostream>
 #include <fstream>
 
-#include "ConvexHull.h"
+#include "MultiThreadedResource.h"
+#include <thread>
+#include <random>
 
+#include "ConvexHull.h"
 
 int main(int argc, char** argv)
 {
+
+	//TEST RESOURCE MANAGEMENT
+	/*Resource<int, 3> resource;
+	int counter = 0;
+	resource.getWrite().data = counter;
+
+	auto func = [](Resource<int, 3>::ReadOnly counter) {
+		int lastCount = counter.getRead().data;
+
+		while (true) {
+			auto countReader = counter.getRead();
+
+			int newCount = countReader.data;
+
+			if (newCount > lastCount) {
+				printf("\t\t\t\t[THREAD] update count to %d\n", newCount);
+				lastCount = newCount;
+			}
+			else
+				printf("\t\t\t\t[THREAD] count unchanged\n");
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(std::rand()%1500));
+		}
+	};
+
+	std::thread countingThread = std::thread(func, resource.createReader());
+
+	while (true) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(529));
+
+		counter++;
+
+		resource.getWrite().data = counter;
+		printf("[HOST] update count to %d\n", counter);
+	}
+	*/
+
 	using namespace std;
 	vector<unsigned char> colors = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 
@@ -65,8 +105,10 @@ int main(int argc, char** argv)
 		//loadFilename = "untrackedmodels/dragon.ply";
 		//loadFilename = "saved/stitchedslices1_3000x3000x982_gaussian-1.5_Iso-21850.clr";
 		//loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
-		loadFilename = "saved/Helianthus2Vein.clr";
+		//loadFilename = "saved/Helianthus2Vein.clr";
 		//loadFilename = "saved/Helianthus2.clr";
+		//loadFilename = "saved/HelianthusSegmentedBracts.clr";
+		//loadFilename = "untrackedmodels/Bellis_800x800x700_uint16.ply";
 		//loadFilename = "saved/default.clr";
 		//loadFilename = "saved/lineendings.clr";
 		//loadFilename = "saved/GerberaNoHair.clr";
@@ -74,7 +116,11 @@ int main(int argc, char** argv)
 		//loadFilename = "saved/Florets3Sectors.clr";
 		//loadFilename = "saved/FloretsMarked.clr";
 		//loadFilename = "saved/default.clr";	//"untrackedmodels/Sample3_q00iso115.ply";
-		saveFilename = "saved/default.clr";
+		//loadFilename = "saved/Bellis.clr";
+		//loadFilename = "untrackedmodels/Sample3_Iso65.ply";
+		loadFilename = "saved/Sample3.clr";
+		saveFilename = "saved/Sample3.clr";
+		//saveFilename = "saved/default.clr";
 		break;
 	case 2:
 		loadFilename = argv[1];

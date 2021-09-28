@@ -71,7 +71,12 @@ OpenVRTest/Debug/vc140.pdb
 BUILD_PACKAGE/x64/
 BUILD_PACKAGE/Win32/
 Win32
+SegmentedModels/
+coloredModel.ply
 
 #Custom file extensions
 *.clr
 *.png
+*nvreportpersist
+*.rc
+*.aps

@@ -28,6 +28,8 @@ struct uniform {
 	FOG_DISTANCE_LOCATION,
 	FOG_COLOR_LOCATION,
 	FOG_SCALE_LOCATION,
+	PLANE_ORIGIN,
+	PLANE_NORMAL,
 	COUNT
 	};
 };
@@ -44,7 +46,8 @@ VRColorShaderBin::VRColorShaderBin(int maxColorNum)
 		{{GL_VERTEX_SHADER, std::string("#define MAX_COLOR_NUM " + to_string(maxColorNum) + "\n") } }, 
 		{ "ka", "ks", "kd", "alpha",
 		"colors", "visibility", "view_projection_matrix", "model_matrix", "viewPosition", "lightPos",
-		"fogDist", "fogColor", "fogScale" }){}
+		"fogDist", "fogColor", "fogScale" ,
+		"planeOrigin", "planeNormal"}){}
 
 void VRColorShaderBin::draw(const Camera &cam_left, const Camera &cam_right, glm::vec3 lightPos,
 	float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj) 
@@ -79,7 +82,7 @@ void VRColorShaderBin::draw(const Camera &cam_left, const Camera &cam_right, glm
 }
 
 void VRColorShaderBin::drawNew(const Camera &cam_left, const Camera &cam_right, glm::vec3 lightPos,
-	float fogScale, float fogDistance, glm::vec3 fogColor, Drawable &obj)
+	float fogScale, float fogDistance, glm::vec3 fogColor, glm::vec3 planeOrigin, glm::vec3 planeNormal, Drawable &obj)
 {
 	glUseProgram(programID);
 
@@ -98,7 +101,9 @@ void VRColorShaderBin::drawNew(const Camera &cam_left, const Camera &cam_right, 
 	glUniform1f(uniformLocations[uniform::FOG_SCALE_LOCATION], fogScale);
 	glUniform1f(uniformLocations[uniform::FOG_DISTANCE_LOCATION], fogDistance);
 	glUniform3f(uniformLocations[uniform::FOG_COLOR_LOCATION], fogColor.x, fogColor.y, fogColor.z);
-	
+	glUniform3f(uniformLocations[uniform::PLANE_ORIGIN], planeOrigin.x, planeOrigin.y, planeOrigin.z);
+	glUniform3f(uniformLocations[uniform::PLANE_NORMAL], planeNormal.x, planeNormal.y, planeNormal.z);
+
 	obj.getGeometry().drawGeometry(programID);
 	glUseProgram(0);
 }

@@ -184,6 +184,7 @@
     <ClInclude Include="BlinnPhongShaderVR.h" />
     <ClInclude Include="BubbleShader.h" />
     <ClInclude Include="ControllerMovement.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="VRColorShader.h" />
     <ClInclude Include="ColorWheel.h" />
     <ClInclude Include="kd_tree.h" />
@@ -191,6 +192,9 @@
     <ClInclude Include="VolumeIO.h" />
     <ClInclude Include="VRView.h" />
     <ClInclude Include="VRWindow.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="OpenVRTest.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
