@@ -106,21 +106,23 @@ int main(int argc, char** argv)
 		//loadFilename = "saved/stitchedslices1_3000x3000x982_gaussian-1.5_Iso-21850.clr";
 		//loadFilename = "untrackedmodels/Craspedia2.ply";	// "untrackedmodels/Helianthus4.ply";	//"untrackedmodels/GRCD2RNA.ply";	//"models/Cube.obj";	//"models/icosahedron.ply";
 		//loadFilename = "saved/Helianthus2Vein.clr";
+		//loadFilename = "saved/HelianthusVeinRainbow.clr";
 		//loadFilename = "saved/Helianthus2.clr";
 		//loadFilename = "saved/HelianthusSegmentedBracts.clr";
 		//loadFilename = "untrackedmodels/Bellis_800x800x700_uint16.ply";
-		//loadFilename = "saved/default.clr";
+		loadFilename = "saved/default.clr";
+		//loadFilename = "untrackedmodels/Coneflower25514.ply";
 		//loadFilename = "saved/lineendings.clr";
 		//loadFilename = "saved/GerberaNoHair.clr";
-		//loadFilename = "saved/Craspedia.clr";
+		//**loadFilename = "saved/Craspedia.clr";
 		//loadFilename = "saved/Florets3Sectors.clr";
 		//loadFilename = "saved/FloretsMarked.clr";
 		//loadFilename = "saved/default.clr";	//"untrackedmodels/Sample3_q00iso115.ply";
 		//loadFilename = "saved/Bellis.clr";
 		//loadFilename = "untrackedmodels/Sample3_Iso65.ply";
-		loadFilename = "saved/Sample3.clr";
-		saveFilename = "saved/Sample3.clr";
-		//saveFilename = "saved/default.clr";
+		//loadFilename = "saved/Sample3.clr";
+		//saveFilename = "saved/Sample3.clr";
+		saveFilename = "saved/default.clr";
 		break;
 	case 2:
 		loadFilename = argv[1];

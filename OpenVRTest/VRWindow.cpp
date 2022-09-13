@@ -3380,9 +3380,22 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 		////////////
 		// DRAWING
 		///////////
+
+		static bool cullBackFace = true;
+		static bool cullBackFacePressed = true;
+		if (!cullBackFacePressed && glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) {
+			cullBackFacePressed = true;
+			cullBackFace = !cullBackFace;
+		}
+		else if (cullBackFacePressed)
+			cullBackFacePressed = false;
+
 		glLineWidth(10.f);
 		glEnable(GL_MULTISAMPLE);
-		glEnable(GL_CULL_FACE);
+		if (cullBackFace)
+			glEnable(GL_CULL_FACE);
+		else
+			glDisable(GL_CULL_FACE);
 		glClearColor(0.f, 0.f, 0.f, 0.f);
 
 		if (writeScreenshot) {

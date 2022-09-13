@@ -80,3 +80,6 @@ coloredModel.ply
 *nvreportpersist
 *.rc
 *.aps
+
+*.view
+*.ply
