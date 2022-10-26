@@ -110,14 +110,14 @@ int main(int argc, char** argv)
 		//loadFilename = "saved/Helianthus2.clr";
 		//loadFilename = "saved/HelianthusSegmentedBracts.clr";
 		//loadFilename = "untrackedmodels/Bellis_800x800x700_uint16.ply";
-		loadFilename = "saved/default.clr";
+		//loadFilename = "saved/default.clr";
 		//loadFilename = "untrackedmodels/Coneflower25514.ply";
 		//loadFilename = "saved/lineendings.clr";
 		//loadFilename = "saved/GerberaNoHair.clr";
 		//**loadFilename = "saved/Craspedia.clr";
 		//loadFilename = "saved/Florets3Sectors.clr";
 		//loadFilename = "saved/FloretsMarked.clr";
-		//loadFilename = "saved/default.clr";	//"untrackedmodels/Sample3_q00iso115.ply";
+		loadFilename = "saved/default.clr";	//"untrackedmodels/Sample3_q00iso115.ply";
 		//loadFilename = "saved/Bellis.clr";
 		//loadFilename = "untrackedmodels/Sample3_Iso65.ply";
 		//loadFilename = "saved/Sample3.clr";

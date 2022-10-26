@@ -2896,6 +2896,7 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 	drawables[0].addMaterial(colorSetMat);		//new ColorSetMat(colorSet));
 	drawables[0].addMaterial(new ColorMat(vec3(1, 0, 0)));
 
+
 	//Trackpad frame
 	ControllerReferenceFilepaths controllerPath(controllerType);
 	MeshInfoLoader trackpadFrameObj(controllerPath.trackpadFrame);
@@ -2956,6 +2957,20 @@ void WindowManager::paintingLoopIndexedMT(const char* loadedFile, const char* sa
 
 	VRSceneTransform sceneTransform;
 	sceneTransform.setPosition(vec3(0.f, 1.f, -1.f));
+	
+	//Rescale model
+	const float MODEL_INITIAL_RADIUS = 1.f;
+	const glm::vec3 MODEL_INITIAL_POSITION(0.f, 1.f, 1.5f);
+
+	float boundingRadius = minfo.getBoundingRadius();
+	glm::vec3 modelCenter = minfo.getCenter();
+
+	sceneTransform.scale = MODEL_INITIAL_RADIUS/minfo.getBoundingRadius();
+	sceneTransform.setPosition(MODEL_INITIAL_POSITION - sceneTransform.scale*minfo.getCenter());
+
+	std::printf("Model: Scale %f    Position (%f %f %f)\nSceneTransform: Scale %f    Position (%f %f %)\n",
+		boundingRadius, modelCenter.x, modelCenter.y, modelCenter.z,
+		sceneTransform.scale, sceneTransform.position.x, sceneTransform.position.y, sceneTransform.position.z);
 
 	//Updating
 	int counter = 0;
